@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { mockAnalysis } from '../data/mockAnalysis';
 import { 
   Check, AlertTriangle, ShieldCheck, ExternalLink, Bookmark, 
@@ -20,6 +20,19 @@ export default function Results() {
   const { id } = useParams();
   const data = mockAnalysis; // In reality, fetch by ID
   
+  if (id !== data.id) {
+    return (
+      <div className="w-full flex flex-col items-center justify-center min-h-[60vh] text-center px-4 animate-in fade-in">
+        <AlertCircle size={48} className="text-gray-300 mb-4" />
+        <h2 className="font-display text-2xl mb-2 text-[#1a1a1a]">Analysis not found</h2>
+        <p className="text-gray-500 mb-8 max-w-md">The verification result you are looking for does not exist, has expired, or the URL is incorrect.</p>
+        <Link to="/home" className="bg-[#114b43] text-white px-8 py-3.5 rounded-xl font-bold text-sm hover:bg-[#0d3b34] transition-all shadow-sm">
+          RETURN TO HOME
+        </Link>
+      </div>
+    );
+  }
+
   const { isSaved, saveToVault, removeFromVault, addTask, updateReminderDate, getOpp } = useVault();
   const savedState = isSaved(data.id);
   const [isReminderOpen, setIsReminderOpen] = useState(false);
@@ -304,6 +317,51 @@ export default function Results() {
         onClose={() => setIsTaskModalOpen(false)} 
         onAdd={(task) => addTask(data.id, task)} 
       />
+    </div>
+  );
+}
+
+// ----------------------------------------------------------------------
+// CLAIM CARD COMPONENT
+// ----------------------------------------------------------------------
+
+function ClaimCard({ claim }) {
+  return (
+    <div className="bg-white rounded-[1.5rem] p-6 sm:p-8 border border-gray-100 shadow-sm flex flex-col gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-4 mb-2">
+        <h4 className="text-lg font-bold text-[#1a1a1a] leading-snug">
+          "{claim.originalClaim}"
+        </h4>
+        <VerificationBadge status={claim.verdict} className="shrink-0" />
+      </div>
+
+      <div className="bg-gray-50 rounded-xl p-4 sm:p-5 border border-gray-100 text-sm text-gray-600 leading-relaxed">
+        <div className="flex items-start gap-3">
+          <Info size={18} className="text-gray-400 shrink-0 mt-0.5" />
+          <p>{claim.evidence}</p>
+        </div>
+      </div>
+
+      {claim.correctedInformation && (
+        <div className="flex items-start gap-3 mt-1">
+          <Check size={18} className="text-[#10b981] shrink-0 mt-0.5" />
+          <p className="text-sm font-bold text-[#1a1a1a]">Fact: <span className="font-medium text-gray-600">{claim.correctedInformation}</span></p>
+        </div>
+      )}
+
+      {claim.source && (
+        <div className="mt-4 pt-4 border-t border-gray-100 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-gray-400">Source</span>
+            <span className="text-xs font-bold text-[#114b43] bg-[#114b43]/5 px-2 py-0.5 rounded">{claim.source.name}</span>
+          </div>
+          {claim.source.url !== '#' && (
+             <a href={claim.source.url} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-[#114b43] transition-colors">
+               <ExternalLink size={14} />
+             </a>
+          )}
+        </div>
+      )}
     </div>
   );
 }
