@@ -18,7 +18,13 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     app_env: str = "dev"
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:5174",
+        "http://localhost:5174",
+    ]
 
     supabase_url: str
     supabase_anon_key: str
@@ -26,11 +32,11 @@ class Settings(BaseSettings):
 
     socialkit_api_key: str
     socialkit_base_url: str = "https://api.socialkit.dev"
-    tavily_api_key: str
-    gemini_api_key: str
+    tavily_api_key: str = ""
+    gemini_api_key: str = ""
 
-    llm_model_fast: str = "gemini-2.0-flash"
-    llm_model_main: str = "gemini-2.0-flash"
+    llm_model_fast: str = "gemini-3.8-flash"
+    llm_model_main: str = "gemini-3.8-flash"
 
     shallow_per_day: int = 50
     deep_per_day: int = 10

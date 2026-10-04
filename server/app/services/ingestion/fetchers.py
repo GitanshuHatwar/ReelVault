@@ -47,7 +47,7 @@ class SocialKitFetcher:
 
     @staticmethod
     def _parse(data: dict, ref: PostRef) -> FetchedPost:
-        d = data.get("data", {}) or {}
+        d = dict(data.get("data", {}) or {})
         transcript = d.get("transcript")
         if not transcript:
             segs = d.get("transcriptSegments") or []
@@ -56,6 +56,9 @@ class SocialKitFetcher:
         author = d.get("author") or d.get("username") or d.get("channel")
         if isinstance(author, dict):
             author = author.get("username") or author.get("name") or author.get("handle")
+        title = d.get("title") or d.get("videoTitle") or d.get("video_title") or d.get("name")
+        if isinstance(title, str) and title.strip():
+            d["title"] = title.strip()
         return FetchedPost(
             platform=ref.platform,
             shortcode=ref.shortcode,
@@ -64,7 +67,7 @@ class SocialKitFetcher:
             caption=d.get("caption") or d.get("description"),
             author=author,
             language_hint=d.get("language") or d.get("language_hint"),
-            raw=data,
+            raw={**data, "data": d},
         )
 
 

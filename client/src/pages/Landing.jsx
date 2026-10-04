@@ -35,7 +35,7 @@ export default function Landing() {
             <Link to="/auth" className="hidden md:block text-sm font-semibold hover:text-[#114b43] transition-colors">
               Log in
             </Link>
-            <Link to="/home" className="bg-[#1a1a1a] text-white text-sm font-semibold px-5 py-2.5 md:py-3 rounded-full hover:bg-black transition-colors">
+            <Link to="/auth" className="bg-[#1a1a1a] text-white text-sm font-semibold px-5 py-2.5 md:py-3 rounded-full hover:bg-black transition-colors">
               Get started
             </Link>
           </div>
