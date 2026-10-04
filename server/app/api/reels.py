@@ -1,21 +1,30 @@
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Response
 
+from app.config import get_settings
 from app.db import repo
 from app.deps import AuthUser, current_user
-from app.errors import NotFound
-from app.schemas.reels import ReelIn, ReelOut
+from app.errors import NoContent, NotFound, RateLimited, UpstreamFailed
+from app.schemas.reels import DeepCookIn, DeepCookOut, ReelIn, ReelOut
+from app.services.deep_cook.pipeline import run_deep_cook
 from app.services.shallow_cook import save_reel
 from app.services.titles import reel_title
 
 router = APIRouter(prefix="/reels", tags=["reels"])
 
 
+def _source_post(reel: dict) -> dict:
+    post = reel.get("source_posts") or {}
+    if isinstance(post, list):
+        post = post[0] if post else {}
+    return post if isinstance(post, dict) else {}
+
+
 def _out(reel: dict, cached: bool = False) -> ReelOut:
-    post = reel["source_posts"]
+    post = _source_post(reel)
     return ReelOut(
         reel_id=reel["id"],
-        platform=post["platform"],
-        url=post["url"],
+        platform=post.get("platform") or "instagram",
+        url=post.get("url") or "",
         title=reel_title(post),
         author=post.get("author"),
         transcript=post.get("transcript"),
@@ -28,6 +37,55 @@ def _out(reel: dict, cached: bool = False) -> ReelOut:
 @router.post("", response_model=ReelOut)
 def create_reel(body: ReelIn, user: AuthUser = Depends(current_user)):
     return save_reel(body.url, user.id)
+
+
+@router.post("/{reel_id}/deep-cook", response_model=DeepCookOut, status_code=202)
+def start_deep_cook(
+    reel_id: int,
+    background_tasks: BackgroundTasks,
+    body: DeepCookIn = Body(default_factory=DeepCookIn),
+    user: AuthUser = Depends(current_user),
+):
+    """Give the entire stored transcript/caption to Gemini for verification."""
+    if not get_settings().gemini_api_key:
+        raise UpstreamFailed("Gemini API key is not configured on the server.")
+
+    reel = repo.get_user_reel(user.id, reel_id)
+    if reel is None:
+        raise NotFound("reel not found")
+
+    current = repo.get_latest_deep_cook(user.id, reel_id)
+    if current and current["status"] not in {"done", "not_opportunity", "failed"}:
+        return current
+    if repo.count_deep_cooks_since_24h(user.id) >= 10:
+        raise RateLimited("Daily limit for research requests reached.")
+
+    post = _source_post(reel)
+    payload = body
+    transcript = (payload.transcript or post.get("transcript") or "").strip() or None
+    caption = (payload.caption or post.get("caption") or "").strip() or None
+    if not (transcript or caption):
+        raise NoContent("This reel has no transcript or caption to send to Gemini.")
+
+    deep_cook = repo.create_deep_cook(user.id, reel_id)
+    background_tasks.add_task(
+        run_deep_cook,
+        deep_cook["id"],
+        transcript,
+        caption,
+        (payload.title or "").strip() or None,
+    )
+    return deep_cook
+
+
+@router.get("/{reel_id}/deep-cook", response_model=DeepCookOut)
+def get_deep_cook(reel_id: int, user: AuthUser = Depends(current_user)):
+    if repo.get_user_reel(user.id, reel_id) is None:
+        raise NotFound("reel not found")
+    deep_cook = repo.get_latest_deep_cook(user.id, reel_id)
+    if deep_cook is None:
+        raise NotFound("research not found")
+    return deep_cook
 
 
 @router.get("", response_model=list[ReelOut])

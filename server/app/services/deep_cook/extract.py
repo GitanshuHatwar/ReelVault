@@ -10,6 +10,7 @@ def extract(post: FetchedPost) -> Extracted:
     llm = get_llm("main").with_structured_output(Extracted)
     system = P.EXTRACT_SYSTEM.replace("{tz}", get_settings().default_timezone)
     user = (
+        "Extract from the complete reel text below.\n"
         f"posted_at: {post.posted_at.isoformat() if post.posted_at else 'unknown'}\n"
         + P.wrap("transcript", post.transcript)
         + "\n"

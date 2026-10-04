@@ -32,11 +32,14 @@ class SocialKitFetcher:
         s = get_settings()
         r = httpx.get(
             f"{s.socialkit_base_url}{path}",
-            params={"access_key": s.socialkit_api_key, "url": url},
+            # SocialKit supports query-string auth, but the header keeps API keys
+            # out of access logs and is the provider's preferred form.
+            headers={"x-access-key": s.socialkit_api_key},
+            params={"url": url},
             timeout=60,
         )
         if r.status_code >= 400:
-            raise UpstreamFailed(f"transcript provider error ({r.status_code})")
+            raise UpstreamFailed(_provider_error(r.status_code))
         return r.json()
 
     def fetch(self, ref: PostRef) -> FetchedPost:
@@ -69,6 +72,18 @@ class SocialKitFetcher:
             language_hint=d.get("language") or d.get("language_hint"),
             raw={**data, "data": d},
         )
+
+
+def _provider_error(status_code: int) -> str:
+    if status_code == 401:
+        return "Transcript provider authentication failed. Update SOCIALKIT_API_KEY and try again."
+    if status_code == 403:
+        return "Transcript provider access was denied. Check the SocialKit API key and available credits, then try again."
+    if status_code == 404:
+        return "This post is unavailable to the transcript provider. Make sure it is public and still online."
+    if status_code == 429:
+        return "Transcript provider rate limit reached. Please wait a moment and try again."
+    return f"Transcript provider could not complete this request ({status_code}). Please try again."
 
 
 def get_fetcher(platform: str) -> ReelFetcher:

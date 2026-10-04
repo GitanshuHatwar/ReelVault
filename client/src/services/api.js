@@ -26,11 +26,20 @@ export function clearSession() {
   localStorage.removeItem(SESSION_KEY);
 }
 
+function errorMessage(payload, fallback) {
+  const fromApp = payload?.error?.message;
+  if (fromApp) return fromApp;
+  const detail = payload?.detail;
+  if (typeof detail === 'string' && detail.trim()) return detail;
+  if (Array.isArray(detail) && detail[0]?.msg) return detail[0].msg;
+  return fallback;
+}
+
 async function parseResponse(response) {
   if (response.status === 204) return null;
   const payload = await response.json().catch(() => null);
   if (!response.ok) {
-    throw new ApiError(payload?.error?.message || 'The request could not be completed.', {
+    throw new ApiError(errorMessage(payload, 'The request could not be completed.'), {
       status: response.status,
       code: payload?.error?.code,
     });
@@ -83,4 +92,6 @@ export const api = {
   listReels: () => request('/v1/reels'),
   getReel: (reelId) => request(`/v1/reels/${reelId}`),
   deleteReel: (reelId) => request(`/v1/reels/${reelId}`, { method: 'DELETE' }),
+  startResearch: (reelId, body = {}) => request(`/v1/reels/${reelId}/deep-cook`, { method: 'POST', body }),
+  getResearch: (reelId) => request(`/v1/reels/${reelId}/deep-cook`),
 };

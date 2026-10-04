@@ -19,7 +19,19 @@ def _set(dc_id: int, status: str, **fields) -> None:
     log.info("deep_cook=%s status=%s", dc_id, status)
 
 
-def run_deep_cook(deep_cook_id: int) -> None:
+def _source_post(reel: dict) -> dict:
+    post = reel.get("source_posts") or {}
+    if isinstance(post, list):
+        post = post[0] if post else {}
+    return post if isinstance(post, dict) else {}
+
+
+def run_deep_cook(
+    deep_cook_id: int,
+    transcript: str | None = None,
+    caption: str | None = None,
+    title: str | None = None,
+) -> None:
     """Background entrypoint. Never raises. Idempotent: only runs a 'queued' job."""
     dc = repo.get_deep_cook(deep_cook_id)
     if dc is None or dc["status"] != "queued":
@@ -28,14 +40,17 @@ def run_deep_cook(deep_cook_id: int) -> None:
         reel = repo.get_user_reel(dc["user_id"], dc["user_reel_id"])
         if reel is None:
             raise PipelineError("reel_missing")
-        sp = reel["source_posts"]
+        sp = _source_post(reel)
+        if not sp:
+            raise PipelineError("reel_missing")
         post = FetchedPost(
             platform=sp["platform"],
             shortcode=sp["shortcode"],
-            url=sp["url"],
-            transcript=sp["transcript"],
-            caption=sp["caption"],
-            posted_at=sp["posted_at"],
+            url=sp.get("url"),
+            transcript=(transcript or sp.get("transcript") or "").strip() or None,
+            caption=(caption or sp.get("caption") or "").strip() or None,
+            posted_at=sp.get("posted_at") or None,
+            raw={"saved_title": title} if title else {},
         )
         if not (post.transcript or post.caption):
             raise PipelineError("empty_content")

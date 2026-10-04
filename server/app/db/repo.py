@@ -107,3 +107,54 @@ def get_user_reel(user_id: str, reel_id: int) -> dict | None:
 def delete_user_reel(user_id: str, reel_id: int) -> bool:
     res = get_db().table("user_reels").delete().eq("id", reel_id).eq("user_id", user_id).execute()
     return bool(res.data)
+
+
+_TERMINAL_DEEP_COOK_STATUSES = {"done", "not_opportunity", "failed"}
+
+
+def count_deep_cooks_since_24h(user_id: str) -> int:
+    res = (
+        get_db()
+        .table("deep_cooks")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .gte("created_at", _since(24))
+        .execute()
+    )
+    return res.count or 0
+
+
+def get_latest_deep_cook(user_id: str, reel_id: int) -> dict | None:
+    return _one(
+        get_db()
+        .table("deep_cooks")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("user_reel_id", reel_id)
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+
+
+def create_deep_cook(user_id: str, reel_id: int) -> dict:
+    result = (
+        get_db()
+        .table("deep_cooks")
+        .insert({"user_id": user_id, "user_reel_id": reel_id, "status": "queued"})
+        .execute()
+    )
+    deep_cook = _one(result)
+    if deep_cook is None:
+        raise UpstreamFailed("could not start Gemini verification")
+    return deep_cook
+
+
+def get_deep_cook(deep_cook_id: int) -> dict | None:
+    return _one(get_db().table("deep_cooks").select("*").eq("id", deep_cook_id).limit(1).execute())
+
+
+def update_deep_cook(deep_cook_id: int, **fields) -> None:
+    if fields.get("status") in _TERMINAL_DEEP_COOK_STATUSES:
+        fields.setdefault("finished_at", datetime.now(timezone.utc).isoformat())
+    get_db().table("deep_cooks").update(fields).eq("id", deep_cook_id).execute()
