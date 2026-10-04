@@ -105,6 +105,12 @@ class Claim(BaseModel):
     source_urls: list[str]
 
 
+class SourceEvidence(BaseModel):
+    url: str
+    content: str
+    source_type: Literal["page", "search_result"] = "page"
+
+
 class ResearchReport(BaseModel):
     eligibility: list[Claim] = Field(default_factory=list)
     timeline: list[Claim] = Field(default_factory=list)
@@ -113,3 +119,4 @@ class ResearchReport(BaseModel):
     selection_criteria: list[Claim] = Field(default_factory=list)
     red_flags: list[Claim] = Field(default_factory=list)
     related_links: list[str] = Field(default_factory=list)
+    source_evidence: list[SourceEvidence] = Field(default_factory=list)

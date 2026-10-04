@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useMemo, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
@@ -29,30 +30,25 @@ export function formatReadableDate(keyOrDate) {
 }
 
 export default function SavedCalendar({
-  reels = [],
+  importantDates = [],
   selectedKey = '',
   onSelect,
-  compact = false,
   className = '',
 }) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     return new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   });
 
-  // Group reels by dateKey
-  const { savedByDay, reelsByDay } = useMemo(() => {
+  // Important dates are user-bookmarked deadlines/events, not reel save dates.
+  const savedByDay = useMemo(() => {
     const countMap = new Map();
-    const listMap = new Map();
-    reels.forEach((reel) => {
-      const key = dateKey(reel.created_at);
+    importantDates.forEach((event) => {
+      const key = dateKey(`${event.event_date}T00:00:00`);
       if (!key) return;
       countMap.set(key, (countMap.get(key) || 0) + 1);
-      const existing = listMap.get(key) || [];
-      existing.push(reel);
-      listMap.set(key, existing);
     });
-    return { savedByDay: countMap, reelsByDay: listMap };
-  }, [reels]);
+    return countMap;
+  }, [importantDates]);
 
   const year = currentMonth.getFullYear();
   const monthIndex = currentMonth.getMonth();
@@ -221,7 +217,7 @@ export default function SavedCalendar({
               }}
               title={
                 count
-                  ? `${formatReadableDate(cell.key)}: ${count} reel${count === 1 ? '' : 's'} saved`
+                  ? `${formatReadableDate(cell.key)}: ${count} important date${count === 1 ? '' : 's'}`
                   : isToday
                   ? 'Today'
                   : formatReadableDate(cell.key)
@@ -249,7 +245,7 @@ export default function SavedCalendar({
       <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 px-1">
         <div className="flex items-center gap-1.5">
           <span className="inline-block w-2.5 h-2.5 rounded-md bg-[#d4f954] border border-[#114b43]/20" />
-          <span className="font-medium text-[11px]">Reel saved</span>
+          <span className="font-medium text-[11px]">Important date</span>
         </div>
         {selectedKey && (
           <span className="text-[11px] font-semibold text-[#114b43]">

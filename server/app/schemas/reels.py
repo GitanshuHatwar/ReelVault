@@ -8,6 +8,29 @@ class ReelIn(BaseModel):
     url: str = Field(min_length=10, max_length=2048)
 
 
+class MentionedSource(BaseModel):
+    name: str
+    url: str | None = None
+
+
+class ReelDetails(BaseModel):
+    dates: list[str] = Field(default_factory=list)
+    books: list[str] = Field(default_factory=list)
+    people: list[str] = Field(default_factory=list)
+    competitions: list[str] = Field(default_factory=list)
+
+
+class ReelAnalysis(BaseModel):
+    """Gemini's three requested outputs for one exact transcript."""
+
+    summary: str
+    english_transcript: str = ""
+    summary_points: list[str] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    sources: list[MentionedSource] = Field(default_factory=list)
+    details: ReelDetails = Field(default_factory=ReelDetails)
+
+
 class ReelOut(BaseModel):
     reel_id: int
     platform: str
@@ -16,6 +39,8 @@ class ReelOut(BaseModel):
     author: str | None = None
     transcript: str | None = None
     caption: str | None = None
+    transcript_status: Literal["verified", "ambiguous", "unavailable"] = "unavailable"
+    analysis: ReelAnalysis | None = None
     created_at: datetime
     cached: bool = False
 
@@ -37,3 +62,25 @@ class DeepCookOut(BaseModel):
     tool_calls: int | None = None
     created_at: datetime
     finished_at: datetime | None = None
+
+
+class SavedLinkIn(BaseModel):
+    label: str = Field(min_length=1, max_length=200)
+    url: str = Field(min_length=3, max_length=2048)
+
+
+class SavedDateIn(BaseModel):
+    label: str = Field(min_length=1, max_length=200)
+    event_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+
+
+class SavedLinkOut(SavedLinkIn):
+    id: int
+    reel_id: int
+    created_at: datetime
+
+
+class SavedDateOut(SavedDateIn):
+    id: int
+    reel_id: int
+    created_at: datetime

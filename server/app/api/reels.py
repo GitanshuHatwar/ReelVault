@@ -4,7 +4,7 @@ from app.config import get_settings
 from app.db import repo
 from app.deps import AuthUser, current_user
 from app.errors import NoContent, NotFound, RateLimited, UpstreamFailed
-from app.schemas.reels import DeepCookIn, DeepCookOut, ReelIn, ReelOut
+from app.schemas.reels import DeepCookIn, DeepCookOut, ReelIn, ReelOut, SavedDateIn, SavedDateOut, SavedLinkIn, SavedLinkOut
 from app.services.deep_cook.pipeline import run_deep_cook
 from app.services.shallow_cook import save_reel
 from app.services.titles import reel_title
@@ -21,14 +21,20 @@ def _source_post(reel: dict) -> dict:
 
 def _out(reel: dict, cached: bool = False) -> ReelOut:
     post = _source_post(reel)
+    transcript = post.get("transcript")
+    caption = post.get("caption")
+    transcript_status = "verified" if transcript else "ambiguous" if caption else "unavailable"
+    raw = post.get("raw") if isinstance(post.get("raw"), dict) else {}
     return ReelOut(
         reel_id=reel["id"],
         platform=post.get("platform") or "instagram",
         url=post.get("url") or "",
         title=reel_title(post),
         author=post.get("author"),
-        transcript=post.get("transcript"),
-        caption=post.get("caption"),
+        transcript=transcript,
+        caption=caption,
+        transcript_status=transcript_status,
+        analysis=raw.get("reel_analysis"),
         created_at=reel["created_at"],
         cached=cached,
     )
@@ -37,6 +43,52 @@ def _out(reel: dict, cached: bool = False) -> ReelOut:
 @router.post("", response_model=ReelOut)
 def create_reel(body: ReelIn, user: AuthUser = Depends(current_user)):
     return save_reel(body.url, user.id)
+
+
+def _saved_link_out(row: dict) -> SavedLinkOut:
+    return SavedLinkOut(id=row["id"], reel_id=row["user_reel_id"], label=row["label"], url=row["url"], created_at=row["created_at"])
+
+
+def _saved_date_out(row: dict) -> SavedDateOut:
+    return SavedDateOut(id=row["id"], reel_id=row["user_reel_id"], label=row["label"], event_date=str(row["event_date"]), created_at=row["created_at"])
+
+
+@router.get("/saved-links", response_model=list[SavedLinkOut])
+def list_saved_links(user: AuthUser = Depends(current_user)):
+    return [_saved_link_out(row) for row in repo.list_saved_links(user.id)]
+
+
+@router.get("/saved-dates", response_model=list[SavedDateOut])
+def list_saved_dates(user: AuthUser = Depends(current_user)):
+    return [_saved_date_out(row) for row in repo.list_saved_dates(user.id)]
+
+
+@router.post("/{reel_id}/saved-links", response_model=SavedLinkOut)
+def save_link(reel_id: int, body: SavedLinkIn, user: AuthUser = Depends(current_user)):
+    if repo.get_user_reel(user.id, reel_id) is None:
+        raise NotFound("reel not found")
+    return _saved_link_out(repo.save_link(user.id, reel_id, body.label.strip(), body.url.strip()))
+
+
+@router.delete("/saved-links/{link_id}", status_code=204)
+def delete_saved_link(link_id: int, user: AuthUser = Depends(current_user)):
+    if not repo.delete_saved_link(user.id, link_id):
+        raise NotFound("saved link not found")
+    return Response(status_code=204)
+
+
+@router.post("/{reel_id}/saved-dates", response_model=SavedDateOut)
+def save_date(reel_id: int, body: SavedDateIn, user: AuthUser = Depends(current_user)):
+    if repo.get_user_reel(user.id, reel_id) is None:
+        raise NotFound("reel not found")
+    return _saved_date_out(repo.save_date(user.id, reel_id, body.label.strip(), body.event_date))
+
+
+@router.delete("/saved-dates/{date_id}", status_code=204)
+def delete_saved_date(date_id: int, user: AuthUser = Depends(current_user)):
+    if not repo.delete_saved_date(user.id, date_id):
+        raise NotFound("saved date not found")
+    return Response(status_code=204)
 
 
 @router.post("/{reel_id}/deep-cook", response_model=DeepCookOut, status_code=202)

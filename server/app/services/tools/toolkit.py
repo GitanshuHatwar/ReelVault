@@ -21,6 +21,7 @@ class ToolRun:
     organizer: str = ""
     seen_urls: set[str] = field(default_factory=set)
     pages: dict[str, str] = field(default_factory=dict)
+    search_results: dict[str, str] = field(default_factory=dict)
     domain_checks: dict[str, dict] = field(default_factory=dict)
 
 
@@ -49,6 +50,8 @@ def build_tools(run: ToolRun, tavily: TavilyClient | None = None):
             for r in resp.get("results", [])
         ]
         run.seen_urls.update(h["url"] for h in hits)
+        for hit in hits:
+            run.search_results[hit["url"]] = "\n".join(part for part in (hit["title"], hit["snippet"]) if part).strip()
         return hits
 
     @tool

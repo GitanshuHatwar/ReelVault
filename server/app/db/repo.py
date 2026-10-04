@@ -44,6 +44,17 @@ def insert_source_post(f: FetchedPost, ref: PostRef) -> dict:
     return post
 
 
+def update_source_post_analysis(post_id: int, analysis: dict) -> dict:
+    post = get_db().table("source_posts").select("*").eq("id", post_id).limit(1).execute()
+    current = _one(post)
+    if current is None:
+        raise UpstreamFailed("could not find saved reel")
+    raw = dict(current.get("raw") or {})
+    raw["reel_analysis"] = analysis
+    get_db().table("source_posts").update({"raw": raw}).eq("id", post_id).execute()
+    return {**current, "raw": raw}
+
+
 def link_user_reel(user_id: str, source_post_id: int) -> dict:
     get_db().table("user_reels").upsert(
         {"user_id": user_id, "source_post_id": source_post_id},
@@ -158,3 +169,41 @@ def update_deep_cook(deep_cook_id: int, **fields) -> None:
     if fields.get("status") in _TERMINAL_DEEP_COOK_STATUSES:
         fields.setdefault("finished_at", datetime.now(timezone.utc).isoformat())
     get_db().table("deep_cooks").update(fields).eq("id", deep_cook_id).execute()
+
+
+def save_link(user_id: str, reel_id: int, label: str, url: str) -> dict:
+    result = get_db().table("user_saved_links").upsert(
+        {"user_id": user_id, "user_reel_id": reel_id, "label": label, "url": url},
+        on_conflict="user_id,user_reel_id,url",
+        ignore_duplicates=True,
+    ).execute()
+    if result.data:
+        return result.data[0]
+    return _one(get_db().table("user_saved_links").select("*").eq("user_id", user_id).eq("user_reel_id", reel_id).eq("url", url).limit(1).execute())
+
+
+def list_saved_links(user_id: str) -> list[dict]:
+    return get_db().table("user_saved_links").select("*").eq("user_id", user_id).order("created_at", desc=True).execute().data
+
+
+def delete_saved_link(user_id: str, link_id: int) -> bool:
+    return bool(get_db().table("user_saved_links").delete().eq("id", link_id).eq("user_id", user_id).execute().data)
+
+
+def save_date(user_id: str, reel_id: int, label: str, event_date: str) -> dict:
+    result = get_db().table("user_saved_dates").upsert(
+        {"user_id": user_id, "user_reel_id": reel_id, "label": label, "event_date": event_date},
+        on_conflict="user_id,user_reel_id,event_date,label",
+        ignore_duplicates=True,
+    ).execute()
+    if result.data:
+        return result.data[0]
+    return _one(get_db().table("user_saved_dates").select("*").eq("user_id", user_id).eq("user_reel_id", reel_id).eq("event_date", event_date).eq("label", label).limit(1).execute())
+
+
+def list_saved_dates(user_id: str) -> list[dict]:
+    return get_db().table("user_saved_dates").select("*").eq("user_id", user_id).order("event_date").execute().data
+
+
+def delete_saved_date(user_id: str, date_id: int) -> bool:
+    return bool(get_db().table("user_saved_dates").delete().eq("id", date_id).eq("user_id", user_id).execute().data)

@@ -30,7 +30,7 @@ Tools: web_search (Tavily; optional include_domains), read_page (Tavily Extract)
 - Look for scam signals: fee demands, lookalike domains, urgency combined with unofficial links.
 - You have a small tool budget. Stop as soon as you have enough evidence. {UNTRUSTED_NOTE}"""
 
-JUDGE_PROMPT = """Using ONLY the tool results above, produce the verdict.
+JUDGE_PROMPT = """Using ONLY the tool results above, produce the verdict in English.
 - official_confirmed: an official page was READ via read_page AND key fields (title/organizer, deadline) match.
 - found_unofficial: only third-party / aggregator coverage.
 - conflicting: sources disagree (e.g., the official deadline differs from the reel).
@@ -39,7 +39,7 @@ JUDGE_PROMPT = """Using ONLY the tool results above, produce the verdict.
 Cite only URLs that appear in tool results. For official_deadline, give an exact quote from the page.
 If unsure, choose the weaker verdict."""
 
-RESEARCH_SYSTEM = f"""You write a sourced briefing about ONE opportunity. Sections: eligibility, timeline,
+RESEARCH_SYSTEM = f"""You write a sourced briefing about ONE opportunity in English. Sections: eligibility, timeline,
 how_to_apply (steps), past_editions, selection_criteria, red_flags, related_links.
 Use read_page on official pages first (known official URLs are provided). EVERY claim must cite URLs you
 actually read. If you cannot source a claim, omit it. If verdict is suspicious, focus on red_flags.

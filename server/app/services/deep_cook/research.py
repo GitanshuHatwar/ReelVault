@@ -2,7 +2,7 @@ from langchain_core.messages import HumanMessage
 
 from app.config import get_settings
 from app.llm import get_llm
-from app.schemas.domain import Extracted, ResearchReport, VerificationResult
+from app.schemas.domain import Extracted, ResearchReport, SourceEvidence, VerificationResult
 from app.services.deep_cook import prompts as P
 from app.services.deep_cook.tool_loop import gather_evidence
 from app.services.tools.toolkit import ToolRun, build_tools
@@ -45,4 +45,16 @@ def _guard(rep: ResearchReport, run: ToolRun) -> ResearchReport:
                 kept.append(c)
         setattr(rep, name, kept)
     rep.related_links = [u for u in rep.related_links if u in run.seen_urls]
+    # Preserve the page text actually read during verification/research so the
+    # Deep Search UI can show the complete evidence, not only model summaries.
+    seen_content: set[tuple[str, str]] = set()
+    rep.source_evidence = []
+    for url, content in run.pages.items():
+        key = (url, content)
+        if content and key not in seen_content:
+            seen_content.add(key)
+            rep.source_evidence.append(SourceEvidence(url=url, content=content, source_type="page"))
+    for url, content in run.search_results.items():
+        if content and url not in run.pages:
+            rep.source_evidence.append(SourceEvidence(url=url, content=content, source_type="search_result"))
     return rep

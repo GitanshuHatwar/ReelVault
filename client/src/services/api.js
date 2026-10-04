@@ -94,4 +94,10 @@ export const api = {
   deleteReel: (reelId) => request(`/v1/reels/${reelId}`, { method: 'DELETE' }),
   startResearch: (reelId, body = {}) => request(`/v1/reels/${reelId}/deep-cook`, { method: 'POST', body }),
   getResearch: (reelId) => request(`/v1/reels/${reelId}/deep-cook`),
+  listSavedLinks: () => request('/v1/reels/saved-links'),
+  saveLink: (reelId, body) => request(`/v1/reels/${reelId}/saved-links`, { method: 'POST', body }),
+  deleteSavedLink: (linkId) => request(`/v1/reels/saved-links/${linkId}`, { method: 'DELETE' }),
+  listSavedDates: () => request('/v1/reels/saved-dates'),
+  saveDate: (reelId, body) => request(`/v1/reels/${reelId}/saved-dates`, { method: 'POST', body }),
+  deleteSavedDate: (dateId) => request(`/v1/reels/saved-dates/${dateId}`, { method: 'DELETE' }),
 };
