@@ -17,6 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { api, ApiError } from "../services/api";
+import SavedCalendar, { dateKey } from "../components/calendar/SavedCalendar";
 
 const ACTIVE_STATUSES = new Set([
   "queued",
@@ -25,7 +26,6 @@ const ACTIVE_STATUSES = new Set([
   "verifying",
   "researching",
 ]);
-const WEEKDAYS = ["S", "M", "T", "W", "T", "F", "S"];
 const REPORT_SECTIONS = [
   ["eligibility", "Eligibility"],
   ["timeline", "Timeline"],
@@ -34,13 +34,6 @@ const REPORT_SECTIONS = [
   ["selection_criteria", "Selection criteria"],
   ["red_flags", "Red flags"],
 ];
-
-function dateKey(value) {
-  const date = new Date(value);
-  return Number.isNaN(date.getTime())
-    ? ""
-    : `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
-}
 
 function formatDate(value) {
   const date = new Date(value);
@@ -53,117 +46,6 @@ function formatDate(value) {
       }).format(date);
 }
 
-function SavedCalendar({ reels, selectedKey, onSelect }) {
-  const [month, setMonth] = useState(
-    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
-  );
-  const savedByDay = useMemo(() => {
-    const map = new Map();
-    reels.forEach((reel) => {
-      const key = dateKey(reel.created_at);
-      if (!key) return;
-      map.set(key, (map.get(key) || 0) + 1);
-    });
-    return map;
-  }, [reels]);
-
-  const year = month.getFullYear();
-  const index = month.getMonth();
-  const label = new Intl.DateTimeFormat(undefined, {
-    month: "long",
-    year: "numeric",
-  }).format(month);
-  const firstWeekday = new Date(year, index, 1).getDay();
-  const daysInMonth = new Date(year, index + 1, 0).getDate();
-  const todayKey = dateKey(new Date());
-  const cells = Array.from({ length: 42 }, (_, cell) => {
-    const day = cell - firstWeekday + 1;
-    return day < 1 || day > daysInMonth ? null : day;
-  });
-
-  return (
-    <section
-      className="bg-white rounded-[1.5rem] p-5 border border-gray-100 shadow-sm"
-      aria-label="Saved reels calendar"
-    >
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2 text-[#114b43]">
-          <CalendarDays size={17} />
-          <span className="text-[11px] font-bold uppercase tracking-widest">
-            Saved reels
-          </span>
-        </div>
-        <div className="flex">
-          <button
-            type="button"
-            aria-label="Previous month"
-            onClick={() => setMonth(new Date(year, index - 1, 1))}
-            className="p-1 text-gray-500 hover:text-[#114b43]"
-          >
-            <ChevronLeft size={17} />
-          </button>
-          <button
-            type="button"
-            aria-label="Next month"
-            onClick={() => setMonth(new Date(year, index + 1, 1))}
-            className="p-1 text-gray-500 hover:text-[#114b43]"
-          >
-            <ChevronRight size={17} />
-          </button>
-        </div>
-      </div>
-      <p className="font-bold text-sm text-[#1a1a1a] mb-3">{label}</p>
-      <div className="grid grid-cols-7 text-center">
-        {WEEKDAYS.map((day, i) => (
-          <span
-            key={`${day}-${i}`}
-            className="pb-1 text-[10px] font-bold text-gray-400"
-          >
-            {day}
-          </span>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 text-center gap-y-1">
-        {cells.map((day, cell) => {
-          if (!day) return <span key={`blank-${cell}`} className="h-8" />;
-          const key = `${year}-${index}-${day}`;
-          const count = savedByDay.get(key) || 0;
-          const selected = selectedKey === key;
-          const isToday = todayKey === key;
-          return (
-            <button
-              key={key}
-              type="button"
-              onClick={() => {
-                if (count) onSelect(selected ? "" : key);
-              }}
-              className={`mx-auto flex h-8 w-8 min-w-0 items-center justify-center rounded-full text-xs ${
-                selected
-                  ? "bg-[#114b43] text-white font-bold"
-                  : count
-                    ? "bg-[#d4f954] text-[#1a1a1a] font-bold"
-                    : isToday
-                      ? "text-[#114b43] font-semibold"
-                      : "text-gray-600"
-              } ${count ? "hover:ring-2 hover:ring-[#114b43]/30" : "cursor-default"}`}
-              aria-label={
-                count
-                  ? `${day}, ${count} saved reel${count === 1 ? "" : "s"}`
-                  : `${day}`
-              }
-            >
-              {day}
-            </button>
-          );
-        })}
-      </div>
-      <p className="mt-3 text-xs text-gray-500">
-        <span className="inline-block w-2 h-2 rounded-full bg-[#d4f954] mr-1.5" />
-        Reel saved — click a highlighted day to filter
-      </p>
-    </section>
-  );
-}
 
 function DeepFridge({ reels, researchByReel }) {
   const completed = reels
@@ -185,7 +67,7 @@ function DeepFridge({ reels, researchByReel }) {
           ELABORATED RESEARCH
         </h2>
         <p className="text-gray-600 font-medium mt-2">
-          Gemini’s verification and deeper research for your saved reels.
+          Opportunity verification and evidence-grounded research for your saved reels.
         </p>
       </div>
       {completed.length === 0 ? (
@@ -381,14 +263,14 @@ export default function Vault() {
       setLoadError(
         error instanceof ApiError
           ? error.message
-          : "Could not start Gemini verification.",
+          : "Could not start opportunity verification.",
       );
     }
   };
 
   return (
     <div className="w-full pb-10">
-      <header className="mb-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-start">
+      <header className="mb-8 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
         <div>
           <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-[#1a1a1a] uppercase mb-3">
             YOUR VAULT
@@ -536,8 +418,7 @@ export default function Vault() {
                     )}
                     {result?.status === "not_opportunity" && (
                       <div className="mt-4 flex items-center gap-2 text-sm text-gray-600">
-                        <Clock3 size={16} /> Gemini did not identify an
-                        opportunity to verify.
+                        <Clock3 size={16} /> No important dates or verification found.
                       </div>
                     )}
                   </article>

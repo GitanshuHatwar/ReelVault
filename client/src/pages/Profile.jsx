@@ -307,10 +307,10 @@ export default function Profile() {
             </div>
             <div>
               <div className="text-xl font-display text-[#114b43] uppercase tracking-wide">
-                Gemini 2.5 Flash
+                Opportunity Engine
               </div>
               <p className="text-xs text-gray-500 mt-1 font-medium">
-                Evidence-grounded pipeline
+                Official source verification
               </p>
             </div>
           </div>

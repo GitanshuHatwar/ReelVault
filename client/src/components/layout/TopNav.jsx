@@ -1,7 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Bookmark, User, Play } from 'lucide-react';
+import { Home, Bookmark, User, Play, CalendarDays } from 'lucide-react';
 
-export default function TopNav() {
+export default function TopNav({ onOpenCalendar }) {
   const location = useLocation();
   const navItems = [
     { name: 'Home', path: '/home', icon: Home },
@@ -13,15 +13,30 @@ export default function TopNav() {
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-black/5 shadow-sm">
       <div className="max-w-5xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between">
         
-        <Link to="/home" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 bg-[#114b43] rounded-full flex items-center justify-center transition-transform group-hover:scale-105">
+        {/* Interactive Logo Button that displays Calendar when pressed */}
+        <button
+          type="button"
+          onClick={onOpenCalendar}
+          title="Press to view Saved Reels Calendar"
+          className="flex items-center gap-2.5 group cursor-pointer text-left bg-transparent border-none p-1.5 -ml-1.5 rounded-2xl transition-all hover:bg-[#F5F3E9] focus:outline-none focus:ring-2 focus:ring-[#114b43]/20"
+        >
+          <div className="relative w-8 h-8 md:w-9 md:h-9 bg-[#114b43] rounded-xl flex items-center justify-center transition-all group-hover:scale-105 group-hover:shadow-sm">
             <Play className="text-[#d4f954] w-4 h-4 ml-0.5" fill="currentColor" />
+            <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#d4f954] rounded-full ring-2 ring-white flex items-center justify-center">
+              <span className="w-1.5 h-1.5 bg-[#114b43] rounded-full animate-pulse" />
+            </span>
           </div>
-          <div className="hidden sm:flex items-center gap-1.5">
-            <span className="font-display text-xl tracking-wide uppercase mt-1">ReelVault</span>
-            <span className="bg-[#d4f954] text-[#114b43] text-[10px] font-bold px-1.5 py-0.5 rounded-sm uppercase tracking-wide">AI</span>
+
+          <div className="flex items-center gap-2">
+            <span className="font-display text-xl tracking-wide uppercase mt-0.5 text-[#1a1a1a] group-hover:text-[#114b43] transition-colors">
+              ReelVault
+            </span>
+            <span className="bg-[#114b43] text-[#d4f954] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 group-hover:bg-[#0e3d36] transition-colors">
+              <CalendarDays size={11} strokeWidth={2.5} />
+              <span className="hidden sm:inline">Calendar</span>
+            </span>
           </div>
-        </Link>
+        </button>
 
         <nav className="hidden md:flex items-center gap-2">
           {navItems.map((item) => {
@@ -43,12 +58,8 @@ export default function TopNav() {
             );
           })}
         </nav>
-
-        {/* Small mobile logo display when text is hidden */}
-        <div className="sm:hidden flex items-center gap-1.5">
-          <span className="font-display text-xl tracking-wide uppercase mt-1">ReelVault</span>
-        </div>
       </div>
     </header>
   );
 }
+
