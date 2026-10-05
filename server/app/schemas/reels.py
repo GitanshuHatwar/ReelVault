@@ -31,6 +31,7 @@ class ReelDetails(BaseModel):
 class ReelAnalysis(BaseModel):
     """Gemini's three requested outputs for one exact transcript."""
 
+    title: str = ""
     summary: str
     english_transcript: str = ""
     summary_points: list[str] = Field(default_factory=list)

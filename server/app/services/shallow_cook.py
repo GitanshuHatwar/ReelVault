@@ -4,7 +4,7 @@ from app.errors import RateLimited
 from app.schemas.reels import ReelOut
 from app.services.ingestion.fetchers import get_fetcher
 from app.services.ingestion.url_normalizer import normalize_url
-from app.services.reel_analysis import analyze_reel
+from app.services.reel_analysis import analyze_reel, fallback_analysis
 from app.services.titles import reel_title
 
 
@@ -33,6 +33,18 @@ def _reel_out(reel: dict, post: dict, *, cached: bool) -> ReelOut:
     )
 
 
+def _store_analysis_result(post: dict, transcript: str | None, caption: str | None) -> dict:
+    analysis, analysis_error = analyze_reel(transcript, caption)
+    if analysis:
+        return repo.update_source_post_analysis(post["id"], analysis)
+    if analysis_error:
+        fallback = fallback_analysis(transcript, caption)
+        if fallback:
+            post = repo.update_source_post_analysis(post["id"], fallback)
+        return repo.update_source_post_analysis(post["id"], error=analysis_error)
+    return post
+
+
 def save_reel(raw_url: str, user_id: str) -> ReelOut:
     ref = normalize_url(raw_url)
     post = repo.get_source_post(ref.platform, ref.shortcode)
@@ -43,17 +55,14 @@ def save_reel(raw_url: str, user_id: str) -> ReelOut:
         saved_analysis = raw.get("reel_analysis") if isinstance(raw.get("reel_analysis"), dict) else {}
         # A new save request is an explicit retry. It gets one provider call;
         # list refreshes and browser polling never invoke this path.
-        if post.get("transcript") and (
+        if (post.get("transcript") or post.get("caption")) and (
             not saved_analysis
+            or not saved_analysis.get("title")
             or not saved_analysis.get("english_transcript")
             or "summary_points" not in saved_analysis
             or "tags" not in saved_analysis
         ):
-            analysis, analysis_error = analyze_reel(post.get("transcript"), post.get("caption"))
-            if analysis:
-                post = repo.update_source_post_analysis(post["id"], analysis)
-            elif analysis_error:
-                post = repo.update_source_post_analysis(post["id"], error=analysis_error)
+            post = _store_analysis_result(post, post.get("transcript"), post.get("caption"))
     else:
         if repo.count_user_reels_since_24h(user_id) >= get_settings().shallow_per_day:
             raise RateLimited("Daily limit for new reels reached.")
@@ -64,11 +73,7 @@ def save_reel(raw_url: str, user_id: str) -> ReelOut:
         # Save first. A Gemini outage must not cost the user their extracted
         # transcript or make saving wait for a provider retry loop.
         post = repo.insert_source_post(fetched, ref)
-        analysis, analysis_error = analyze_reel(fetched.transcript, fetched.caption)
-        if analysis:
-            post = repo.update_source_post_analysis(post["id"], analysis)
-        elif analysis_error:
-            post = repo.update_source_post_analysis(post["id"], error=analysis_error)
+        post = _store_analysis_result(post, fetched.transcript, fetched.caption)
 
     reel = repo.link_user_reel(user_id, post["id"])
     return _reel_out(reel, post, cached=cached)
