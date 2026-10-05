@@ -17,4 +17,5 @@ def get_llm(kind: Literal["fast", "main"] = "main"):
         model if ":" in model else f"google_genai:{model}",
         api_key=s.gemini_api_key,
         temperature=0,
+        max_retries=s.llm_max_retries,
     )

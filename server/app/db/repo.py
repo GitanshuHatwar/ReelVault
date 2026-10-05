@@ -44,13 +44,18 @@ def insert_source_post(f: FetchedPost, ref: PostRef) -> dict:
     return post
 
 
-def update_source_post_analysis(post_id: int, analysis: dict) -> dict:
+def update_source_post_analysis(post_id: int, analysis: dict | None = None, error: dict | None = None) -> dict:
+    """Persist an AI result or its user-safe failure state with the source post."""
     post = get_db().table("source_posts").select("*").eq("id", post_id).limit(1).execute()
     current = _one(post)
     if current is None:
         raise UpstreamFailed("could not find saved reel")
     raw = dict(current.get("raw") or {})
-    raw["reel_analysis"] = analysis
+    if analysis is not None:
+        raw["reel_analysis"] = analysis
+        raw.pop("reel_analysis_error", None)
+    elif error is not None:
+        raw["reel_analysis_error"] = error
     get_db().table("source_posts").update({"raw": raw}).eq("id", post_id).execute()
     return {**current, "raw": raw}
 
@@ -121,6 +126,7 @@ def delete_user_reel(user_id: str, reel_id: int) -> bool:
 
 
 _TERMINAL_DEEP_COOK_STATUSES = {"done", "not_opportunity", "failed"}
+_ACTIVE_DEEP_COOK_STATUSES = {"queued", "classifying", "extracting", "verifying", "researching"}
 
 
 def count_deep_cooks_since_24h(user_id: str) -> int:
@@ -169,6 +175,28 @@ def update_deep_cook(deep_cook_id: int, **fields) -> None:
     if fields.get("status") in _TERMINAL_DEEP_COOK_STATUSES:
         fields.setdefault("finished_at", datetime.now(timezone.utc).isoformat())
     get_db().table("deep_cooks").update(fields).eq("id", deep_cook_id).execute()
+
+
+def fail_interrupted_deep_cooks() -> int:
+    """Close jobs abandoned by a previous API process.
+
+    Deep-cook work runs in FastAPI background tasks, so it cannot survive a
+    server restart. Leaving those rows active makes every client poll forever.
+    """
+    result = (
+        get_db()
+        .table("deep_cooks")
+        .update(
+            {
+                "status": "failed",
+                "error_code": "interrupted",
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        .in_("status", list(_ACTIVE_DEEP_COOK_STATUSES))
+        .execute()
+    )
+    return len(result.data or [])
 
 
 def save_link(user_id: str, reel_id: int, label: str, url: str) -> dict:

@@ -75,7 +75,7 @@ function StructuredTranscript({ text, expanded }) {
 function displayContent(reel, language) {
   const original = reel.transcript || reel.caption || "This type of content cannot be transcribed.";
   if (language === "native") return original;
-  return reel.analysis?.english_transcript || reel.analysis?.summary || "English transcription is being prepared for this reel.";
+  return reel.analysis?.english_transcript || reel.analysis?.summary || "English translation is unavailable for this reel.";
 }
 
 function sourceHref(url) {
@@ -143,7 +143,7 @@ function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete 
         const researching = result && ACTIVE_STATUSES.has(result.status);
         const text = displayContent(reel, language);
         const expanded = openId === reel.reel_id;
-        return <article key={reel.reel_id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{reel.platform} · saved {formatDate(reel.created_at)}</p><h3 className="mt-1 font-bold text-[#1a1a1a]">{reel.title}</h3></div><button type="button" onClick={() => onDelete(reel.reel_id)} className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500" title="Remove from vault"><Trash2 size={15} /> Remove</button></div><div className="mt-4"><StructuredTranscript text={text} expanded={expanded} /></div>{text.length > 180 && <button type="button" onClick={() => setOpenId(expanded ? null : reel.reel_id)} className="mt-3 text-xs font-bold uppercase tracking-widest text-[#114b43] hover:underline">{expanded ? "Show less" : "Show more"}</button>}<div className="mt-4 flex flex-wrap items-center gap-4"><a href={reel.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-blue-600 underline underline-offset-4"><ExternalLink size={13} /> Open original</a><button type="button" onClick={() => onResearch(reel)} disabled={researching} className="inline-flex items-center gap-2 rounded-lg bg-[#114b43] px-3 py-2 text-xs font-bold uppercase tracking-widest text-white disabled:opacity-60"><Sparkles size={14} />{researching ? "Researching…" : "Research"}</button></div>{researching && <p className="mt-3 flex items-center gap-2 text-sm text-[#114b43]"><LoaderCircle size={15} className="animate-spin" /> Verification in progress…</p>}</article>;
+        return <article key={reel.reel_id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{reel.platform} · saved {formatDate(reel.created_at)}</p><h3 className="mt-1 font-bold text-[#1a1a1a]">{reel.title}</h3></div><button type="button" onClick={() => onDelete(reel.reel_id)} className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500" title="Remove from vault"><Trash2 size={15} /> Remove</button></div>{reel.analysis_error && <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-900"><strong>Reel saved.</strong> {reel.analysis_error}</p>}<div className="mt-4"><StructuredTranscript text={text} expanded={expanded} /></div>{text.length > 180 && <button type="button" onClick={() => setOpenId(expanded ? null : reel.reel_id)} className="mt-3 text-xs font-bold uppercase tracking-widest text-[#114b43] hover:underline">{expanded ? "Show less" : "Show more"}</button>}<div className="mt-4 flex flex-wrap items-center gap-4"><a href={reel.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-blue-600 underline underline-offset-4"><ExternalLink size={13} /> Open original</a><button type="button" onClick={() => onResearch(reel)} disabled={researching} className="inline-flex items-center gap-2 rounded-lg bg-[#114b43] px-3 py-2 text-xs font-bold uppercase tracking-widest text-white disabled:opacity-60"><Sparkles size={14} />{researching ? "Researching…" : "Research"}</button></div>{researching && <p className="mt-3 flex items-center gap-2 text-sm text-[#114b43]"><LoaderCircle size={15} className="animate-spin" /> Verification in progress…</p>}{result?.status === "failed" && <p role="alert" className="mt-3 text-sm text-amber-800">Research could not run{result.error_code === "ai_rate_limited" ? " because the Gemini quota or rate limit was reached." : "."}</p>}</article>;
       })}</div>}
       {completed.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500">
@@ -531,6 +531,14 @@ export default function Vault() {
                         <Trash2 size={16} />
                       </button>
                     </div>
+                    {reel.analysis_error && (
+                      <p
+                        role="alert"
+                        className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-900"
+                      >
+                        <strong>Reel saved.</strong> {reel.analysis_error}
+                      </p>
+                    )}
                     <ReelAnalysisPanel reel={reel} onSaveLink={handleSaveLink} onSaveDate={handleSaveDate} onSaveToLinkVault={handleSaveToLinkVault} savedLinks={savedLinks} savedDates={savedDates} linkVaultEntries={linkVaultEntries} />
                     <StructuredTranscript text={body} expanded={expanded} />
                     {canExpand && (

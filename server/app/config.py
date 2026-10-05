@@ -37,6 +37,10 @@ class Settings(BaseSettings):
 
     llm_model_fast: str = "gemini-3.8-flash"
     llm_model_main: str = "gemini-3.8-flash"
+    # A save must never wait through the provider's exponential backoff. One
+    # request gives us a useful answer when Gemini is available and fails fast
+    # when the project has exhausted its quota.
+    llm_max_retries: int = 1
 
     shallow_per_day: int = 50
     deep_per_day: int = 10

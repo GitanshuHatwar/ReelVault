@@ -49,6 +49,8 @@ class ReelOut(BaseModel):
     caption: str | None = None
     transcript_status: Literal["verified", "ambiguous", "unavailable"] = "unavailable"
     analysis: ReelAnalysis | None = None
+    analysis_error_code: str | None = None
+    analysis_error: str | None = None
     created_at: datetime
     cached: bool = False
 

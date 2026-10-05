@@ -2,6 +2,7 @@
 
 import logging
 
+from google.api_core.exceptions import ResourceExhausted
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from app.config import get_settings
@@ -28,12 +29,12 @@ Return exactly these six factual fields in the supplied schema:
 """
 
 
-def analyze_reel(transcript: str | None, caption: str | None) -> dict | None:
-    """Use the exact extracted text once, without making a save fail if Gemini is unavailable."""
+def analyze_reel(transcript: str | None, caption: str | None) -> tuple[dict | None, dict | None]:
+    """Analyze once and return a user-safe failure state instead of retrying."""
     transcript = (transcript or "").strip()
     caption = (caption or "").strip()
     if not transcript or not get_settings().gemini_api_key:
-        return None
+        return None, None
 
     try:
         model = get_llm("fast").with_structured_output(ReelAnalysis)
@@ -50,9 +51,19 @@ def analyze_reel(transcript: str | None, caption: str | None) -> dict | None:
                 ),
             ]
         )
-        return analysis.model_dump(mode="json")
+        return analysis.model_dump(mode="json"), None
+    except ResourceExhausted:
+        log.warning("immediate Gemini reel analysis skipped: provider quota or rate limit reached")
+        return None, {
+            "code": "ai_rate_limited",
+            "message": "AI analysis is temporarily unavailable because the Gemini quota or rate limit was reached. Your original transcript was saved, but an English translation, summary, links, and dates were not generated.",
+        }
     except Exception:
-        # The transcript is already safely stored. Let the user use it even if
-        # Gemini has a temporary outage; the next save remains unaffected.
+        # The transcript is already safely stored. Record the problem so the
+        # client can explain the missing enrichment instead of implying it is
+        # still being prepared.
         log.exception("immediate Gemini reel analysis failed")
-        return None
+        return None, {
+            "code": "ai_unavailable",
+            "message": "AI analysis is temporarily unavailable. Your original transcript was saved, but an English translation, summary, links, and dates were not generated.",
+        }

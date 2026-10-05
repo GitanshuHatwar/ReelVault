@@ -1,5 +1,7 @@
 import logging
 
+from google.api_core.exceptions import ResourceExhausted
+
 from app.db import repo
 from app.errors import PipelineError
 from app.schemas.domain import FetchedPost, Verdict, VerificationResult
@@ -96,6 +98,9 @@ def run_deep_cook(
             rep = research(ex, ver, run)
             repo.update_deep_cook(deep_cook_id, report=rep.model_dump(mode="json"))
         _set(deep_cook_id, "done")
+    except ResourceExhausted:
+        log.warning("deep_cook=%s stopped: Gemini quota or rate limit reached", deep_cook_id)
+        _set(deep_cook_id, "failed", error_code="ai_rate_limited")
     except PipelineError as e:
         _set(deep_cook_id, "failed", error_code=e.code)
     except Exception:

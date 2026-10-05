@@ -136,29 +136,10 @@ export default function Home() {
     setAnalysisComplete(false);
     setIsSubmitting(true);
     try {
-      const reel = await api.saveReel(inputValue.trim());
-      setAnalysisStep(2);
-      try {
-        let research = await api.startResearch(reel.reel_id, {
-          transcript: reel.transcript || '',
-          caption: reel.caption || '',
-          title: reel.title || '',
-        });
-        const phase = (status) => (['verifying', 'researching'].includes(status) ? 3 : 2);
-        setAnalysisStep(phase(research.status));
-        for (let attempts = 0; attempts < 75 && !['done', 'not_opportunity', 'failed'].includes(research.status); attempts += 1) {
-          await new Promise((resolve) => window.setTimeout(resolve, 1200));
-          research = await api.getResearch(reel.reel_id);
-          setAnalysisStep(phase(research.status));
-        }
-      } catch {
-        // The reel has already been safely saved. Source verification may be unavailable on a local server.
-        setAnalysisStep(3);
-      }
+      await api.saveReel(inputValue.trim());
       setAnalysisComplete(true);
       setInputValue('');
       loadRecent();
-      await new Promise((resolve) => window.setTimeout(resolve, 500));
       navigate('/vault');
     } catch (requestError) {
       setSubmitError(requestError instanceof ApiError ? requestError.message : 'Unable to save this reel.');
