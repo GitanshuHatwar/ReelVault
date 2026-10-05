@@ -41,8 +41,18 @@ export default function Profile() {
     return localStorage.getItem('reelvault_pref_tz') || 'Asia/Kolkata (IST)';
   });
   const [exportFormat, setExportFormat] = useState(() => {
-    return localStorage.getItem('reelvault_pref_export') || 'iCalendar (.ics)';
+    return localStorage.getItem('reelvault_pref_export') || 'reelvault';
   });
+  const [calendarSaved, setCalendarSaved] = useState(false);
+
+  const handleExportFormatChange = (e) => {
+    const val = e.target.value;
+    setExportFormat(val);
+    setCalendarSaved(false);
+    if (val === 'reelvault') {
+      localStorage.setItem('reelvault_pref_export', val);
+    }
+  };
 
   const displayEmail = user?.email || session?.user?.email || 'Signed in';
   const displayName = displayEmail.includes('@')
@@ -65,6 +75,19 @@ export default function Profile() {
 
   useEffect(() => {
     fetchUserVault();
+  }, []);
+
+  useEffect(() => {
+    if (window.location.hash === '#calendar-integration') {
+      setTimeout(() => {
+        const el = document.getElementById('calendar-integration');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-4', 'ring-[#d4f954]', 'transition-all', 'duration-500');
+          setTimeout(() => el.classList.remove('ring-4', 'ring-[#d4f954]'), 2000);
+        }
+      }, 100);
+    }
   }, []);
 
   // Compute live stats
@@ -98,11 +121,6 @@ export default function Profile() {
     localStorage.setItem('reelvault_pref_tz', val);
   };
 
-  const handleExportFormatChange = (e) => {
-    const val = e.target.value;
-    setExportFormat(val);
-    localStorage.setItem('reelvault_pref_export', val);
-  };
 
   const handleLogout = async () => {
     setIsLoggingOut(true);
@@ -351,12 +369,12 @@ export default function Profile() {
             </div>
 
             {/* Calendar Export Format */}
-            <div className="space-y-1.5 pt-2 border-t border-gray-50">
+            <div className="space-y-1.5 pt-2 border-t border-gray-50" id="calendar-integration">
               <label htmlFor="pref-export" className="block text-xs font-bold uppercase tracking-wider text-gray-600">
                 Calendar Integration
               </label>
               <p className="text-xs text-gray-500">
-                Standard file format for confirmed opportunity deadlines.
+                Choose how you want to track confirmed opportunity deadlines.
               </p>
               <select
                 id="pref-export"
@@ -364,9 +382,35 @@ export default function Profile() {
                 onChange={handleExportFormatChange}
                 className="w-full mt-1 px-3.5 py-2.5 bg-[#fbfbfa] border border-gray-200 rounded-xl text-sm font-semibold text-[#1a1a1a] focus:outline-none focus:border-[#114b43] focus:ring-1 focus:ring-[#114b43]"
               >
-                <option value="iCalendar (.ics)">iCalendar (.ics) format</option>
-                <option value="Google Calendar Link">Google Calendar URL Link</option>
+                <option value="reelvault">ReelVault Calendar (Default)</option>
+                <option value="google">Google Calendar</option>
               </select>
+
+              {exportFormat === 'google' && (
+                <div className="mt-4 p-4 bg-[#F5F3E9] rounded-xl border border-gray-200">
+                  <p className="text-sm font-medium text-gray-700 mb-4">
+                    Google Calendar is enabled. Events will open in Google Calendar with their details pre-filled.
+                  </p>
+                  
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        localStorage.setItem('reelvault_pref_export', 'google');
+                        setCalendarSaved(true);
+                      }}
+                      className="bg-[#114b43] text-white hover:bg-[#0e3f38] px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-wider transition-colors shadow-sm"
+                    >
+                      SAVE CALENDAR PREFERENCE
+                    </button>
+                    {calendarSaved && (
+                      <Link to="/vault" className="text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-800 flex items-center gap-1">
+                        BACK TO VAULT <ArrowRight size={13} />
+                      </Link>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Auto Verification Toggle */}

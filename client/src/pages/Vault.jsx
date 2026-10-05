@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import {
   AlertCircle,
   ArrowRight,
@@ -8,6 +8,7 @@ import {
   CalendarPlus,
   CalendarDays,
   ExternalLink,
+  Eye,
   LoaderCircle,
   List,
   Link2,
@@ -89,15 +90,23 @@ function toInputDate(value) {
   return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString().slice(0, 10);
 }
 
-function isPastDate(value) {
-  const eventDate = toInputDate(value);
-  if (eventDate) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return new Date(`${eventDate}T00:00:00`) < today;
-  }
-  const yearMatch = String(value).match(/\b((?:19|20)\d{2})\b/);
-  return Boolean(yearMatch && Number(yearMatch[1]) < new Date().getFullYear());
+function openGoogleCalendar(reel, label, dateString) {
+  const d = new Date(dateString);
+  if (Number.isNaN(d.getTime())) return;
+  
+  const startStr = d.toISOString().slice(0,10).replace(/-/g, '');
+  const nextDay = new Date(d);
+  nextDay.setDate(d.getDate() + 1);
+  const endStr = nextDay.toISOString().slice(0,10).replace(/-/g, '');
+  
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: reel.title || 'Saved Opportunity',
+    dates: `${startStr}/${endStr}`,
+    details: `Event: ${label}\nCategory: ${reel.analysis?.tags?.[0] || 'Opportunity'}\nSource: ${reel.url}\n\nSaved via ReelVault`,
+  });
+  
+  window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
 }
 
 function ReelAnalysisPanel({ reel, onSaveLink, onSaveDate, onSaveToLinkVault, savedLinks, savedDates, linkVaultEntries }) {
@@ -110,6 +119,15 @@ function ReelAnalysisPanel({ reel, onSaveLink, onSaveDate, onSaveToLinkVault, sa
   const topics = [...new Set([...(analysis.tags || []), ...(details.competitions || []), ...(details.people || []), ...(details.books || [])])];
   const inLinkVault = linkVaultEntries.some((entry) => entry.reel_id === reel.reel_id);
 
+  const handleCalendarAction = (reel, payload) => {
+    const pref = localStorage.getItem('reelvault_pref_export');
+    if (pref === 'google') {
+      openGoogleCalendar(reel, payload.label, payload.event_date);
+    } else {
+      onSaveDate(reel, payload);
+    }
+  };
+
   return <>
     <section className="mb-4 rounded-2xl border border-[#114b43]/10 bg-[#F5F3E9] p-5">
       <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43]">Reel summary</p>
@@ -117,9 +135,9 @@ function ReelAnalysisPanel({ reel, onSaveLink, onSaveDate, onSaveToLinkVault, sa
     </section>
     <section className="mb-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43]">Reel resources</p><p className="mt-1 text-sm text-gray-500">Save links, dates and search topics separately from the summary.</p></div><button type="button" onClick={() => onSaveToLinkVault(reel, sources, topics)} disabled={inLinkVault} className="inline-flex items-center gap-1.5 rounded-lg bg-[#114b43] px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white disabled:bg-gray-300"><BookmarkPlus size={14} />{inLinkVault ? "In Link Vault" : "Add to Link Vault"}</button></div>
-      <div className="mt-4 grid gap-5 lg:grid-cols-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Links & sources</p>{sources.length === 0 ? <p className="text-sm text-gray-400">No links were found in this reel.</p> : <div className="flex flex-wrap gap-2">{sources.map((source, index) => { const href = sourceHref(source.url || (/^[\w.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(source.name) ? source.name : null)); const saved = savedLinks.some((item) => item.reel_id === reel.reel_id && item.url === href); return <span key={`${source.name}-${index}`} className="inline-flex items-center gap-2 rounded-lg bg-[#F5F3E9] px-2.5 py-1.5 text-sm font-medium text-gray-700">{href ? <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-800">{source.name}</a> : source.name}<button type="button" disabled={!href || saved} onClick={() => onSaveLink(reel, source)} className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:text-gray-400"><BookmarkPlus size={12} />{saved ? "Saved" : "Save"}</button></span>; })}</div>}</div><div><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Dates</p>{dates.length === 0 ? <p className="text-sm text-gray-400">No dates were found in this reel.</p> : <ul className="space-y-2 text-sm text-gray-700">{dates.map((value) => { const eventDate = toInputDate(value); const saved = eventDate && savedDates.some((item) => item.reel_id === reel.reel_id && item.event_date === eventDate && item.label === value); const past = isPastDate(value); return <li key={value} className="flex flex-wrap items-center gap-2"><span className="text-[#114b43]">•</span><span className={past ? "text-red-600" : ""}>{value}</span>{past && <span className="text-xs font-bold text-red-600">Warning: this date has passed.</span>}<button type="button" disabled={!eventDate || saved} onClick={() => onSaveDate(reel, { label: value, event_date: eventDate })} className="inline-flex items-center gap-1 rounded-md border border-[#114b43]/20 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:border-gray-100 disabled:text-gray-400"><CalendarPlus size={12} />{saved ? "On calendar" : "Add to calendar"}</button></li>; })}</ul>}</div></div>
+      <div className="mt-4 grid gap-5 lg:grid-cols-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Links & sources</p>{sources.length === 0 ? <p className="text-sm text-gray-400">No links were found in this reel.</p> : <div className="flex flex-wrap gap-2">{sources.map((source, index) => { const href = sourceHref(source.url || (/^[\w.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(source.name) ? source.name : null)); const saved = savedLinks.some((item) => item.reel_id === reel.reel_id && item.url === href); return <span key={`${source.name}-${index}`} className="inline-flex items-center gap-2 rounded-lg bg-[#F5F3E9] px-2.5 py-1.5 text-sm font-medium text-gray-700">{href ? <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-800">{source.name}</a> : source.name}<button type="button" disabled={!href || saved} onClick={() => onSaveLink(reel, source)} className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:text-gray-400"><BookmarkPlus size={12} />{saved ? "Saved" : "Save"}</button></span>; })}</div>}</div><div><div className="flex items-center justify-between mb-2"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Dates</p><Link to="/profile#calendar-integration" title="Configure Google Calendar" aria-label="Configure Google Calendar" className="text-gray-400 hover:text-[#114b43]"><Eye size={14} /></Link></div>{dates.length === 0 ? <p className="text-sm text-gray-400">No dates were found in this reel.</p> : <ul className="space-y-2 text-sm text-gray-700">{dates.map((value) => { const eventDate = toInputDate(value); const saved = eventDate && savedDates.some((item) => item.reel_id === reel.reel_id && item.event_date === eventDate && item.label === value); return <li key={value} className="flex flex-wrap items-center gap-2"><span className="text-[#114b43]">•</span><span>{value}</span><button type="button" disabled={(!eventDate || saved) && localStorage.getItem('reelvault_pref_export') !== 'google'} onClick={() => handleCalendarAction(reel, { label: value, event_date: eventDate })} className="inline-flex items-center gap-1 rounded-md border border-[#114b43]/20 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:border-gray-100 disabled:text-gray-400"><CalendarPlus size={12} />{saved ? "On calendar" : "Add to calendar"}</button></li>; })}</ul>}</div></div>
       {topics.length > 0 && <div className="mt-5 border-t border-gray-100 pt-4"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Topics to explore</p><div className="flex flex-wrap gap-2">{topics.map((topic) => <a key={topic} href={`https://www.google.com/search?q=${encodeURIComponent(topic)}`} target="_blank" rel="noreferrer" className="rounded-full bg-[#F5F3E9] px-3 py-1.5 text-xs font-bold text-[#114b43] hover:bg-[#e8e5d6]">Search {topic}</a>)}</div></div>}
-      <div className="mt-5 border-t border-gray-100 pt-4"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Add an important date</p><div className="flex flex-wrap items-center gap-2"><input type="date" value={manualDate} onChange={(event) => setManualDate(event.target.value)} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700" /><button type="button" disabled={!manualDate} onClick={() => { onSaveDate(reel, { label: `Important date for ${reel.title}`, event_date: manualDate }); setManualDate(""); }} className="inline-flex items-center gap-1 rounded-lg border border-[#114b43] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:border-gray-200 disabled:text-gray-400"><CalendarPlus size={12} /> Add to calendar</button></div></div>
+      <div className="mt-5 border-t border-gray-100 pt-4"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Add an important date</p><div className="flex flex-wrap items-center gap-2"><input type="date" value={manualDate} onChange={(event) => setManualDate(event.target.value)} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700" /><button type="button" disabled={!manualDate} onClick={() => { handleCalendarAction(reel, { label: `Important date for ${reel.title}`, event_date: manualDate }); setManualDate(""); }} className="inline-flex items-center gap-1 rounded-lg border border-[#114b43] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:border-gray-200 disabled:text-gray-400"><CalendarPlus size={12} /> Add to calendar</button></div></div>
     </section>
   </>;
 }
@@ -412,6 +430,23 @@ export default function Vault() {
   const handleDeleteDate = async (dateId) => { try { await api.deleteSavedDate(dateId); setSavedDates((current) => current.filter((item) => item.id !== dateId)); } catch (error) { setLoadError(error instanceof ApiError ? error.message : "Could not remove this date."); } };
   const handleDeleteLinkVault = async (entryId) => { try { await api.deleteLinkVault(entryId); setLinkVaultEntries((current) => current.filter((item) => item.id !== entryId)); } catch (error) { setLoadError(error instanceof ApiError ? error.message : "Could not remove this Link Vault entry."); } };
 
+  const handleViewOpportunity = (reelId) => {
+    setActiveTab("vault");
+    setSearchQuery("");
+    setSelectedDay("");
+    // Give react time to switch tab and render before scrolling
+    setTimeout(() => {
+      const element = document.getElementById(`vault-reel-${reelId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('ring-4', 'ring-[#d4f954]', 'transition-all', 'duration-500');
+        setTimeout(() => {
+          element.classList.remove('ring-4', 'ring-[#d4f954]');
+        }, 2000);
+      }
+    }, 100);
+  };
+
   return (
     <div className="w-full pb-10">
       <header className="mb-8">
@@ -449,12 +484,13 @@ export default function Vault() {
               Track important dates and deadlines from your saved reels.
             </p>
           </div>
-          <div className="max-w-[400px]">
+          <div className="w-full">
             <SavedCalendar
               reels={reels}
               importantDates={savedDates}
               selectedKey={selectedDay}
               onSelect={setSelectedDay}
+              onViewOpportunity={handleViewOpportunity}
             />
           </div>
         </section>
@@ -517,6 +553,7 @@ export default function Vault() {
                 return (
                   <article
                     key={reel.reel_id}
+                    id={`vault-reel-${reel.reel_id}`}
                     className="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-4 mb-3">
