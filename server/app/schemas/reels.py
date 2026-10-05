@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class ReelIn(BaseModel):
@@ -11,6 +11,14 @@ class ReelIn(BaseModel):
 class MentionedSource(BaseModel):
     name: str
     url: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def accept_plain_source_names(cls, value: Any) -> Any:
+        """Gemini occasionally returns a source as a bare name despite the schema."""
+        if isinstance(value, str):
+            return {"name": value}
+        return value
 
 
 class ReelDetails(BaseModel):

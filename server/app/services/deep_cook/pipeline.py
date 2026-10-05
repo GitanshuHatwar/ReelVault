@@ -62,7 +62,14 @@ def run_deep_cook(
             return _set(deep_cook_id, "not_opportunity")
 
         _set(deep_cook_id, "extracting")
-        ex, dropped = ground(extract(post), post)
+        extracted = extract(post)
+        # Defensive guard for third-party structured-output adapters. `extract`
+        # normally returns an Extracted instance, but never let a malformed
+        # model response turn into an unhandled AttributeError in `ground`.
+        if not isinstance(extracted, Extracted):
+            log.warning("deep_cook=%s received invalid extraction result", deep_cook_id)
+            extracted = Extracted()
+        ex, dropped = ground(extracted, post)
         log.info("deep_cook=%s ungrounded_fields_dropped=%s", deep_cook_id, dropped)
         repo.update_deep_cook(deep_cook_id, extracted=ex.model_dump(mode="json"))
 
