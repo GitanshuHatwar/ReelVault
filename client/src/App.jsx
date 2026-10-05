@@ -4,6 +4,7 @@ import Landing from './pages/Landing';
 import Home from './pages/Home';
 import Auth from './pages/Auth';
 import Vault from './pages/Vault';
+import Links from './pages/Links';
 import Profile from './pages/Profile';
 import ProtectedRoute from './auth/ProtectedRoute';
 
@@ -16,6 +17,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/home" element={<Home />} />
           <Route path="/vault" element={<Vault />} />
+          <Route path="/links" element={<Links />} />
           <Route path="/profile" element={<Profile />} />
         </Route>
       </Route>

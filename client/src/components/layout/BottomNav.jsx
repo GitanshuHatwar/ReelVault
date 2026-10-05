@@ -1,11 +1,12 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Bookmark, User } from 'lucide-react';
+import { Home, Bookmark, User, Link2 } from 'lucide-react';
 
 export default function BottomNav() {
   const location = useLocation();
   const navItems = [
     { name: 'Home', path: '/home', icon: Home },
     { name: 'Vault', path: '/vault', icon: Bookmark },
+    { name: 'Links', path: '/links', icon: Link2 },
     { name: 'Profile', path: '/profile', icon: User },
   ];
 
