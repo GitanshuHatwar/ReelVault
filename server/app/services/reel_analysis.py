@@ -26,7 +26,7 @@ Return exactly these seven factual fields in the supplied schema:
    factual claim, name, date, URL, and uncertainty. Do not summarize, omit, or add content.
 4. sources: every website, URL, link, organisation source, or domain explicitly spoken or written in the
    transcript/caption (for example coursera.com or amazon.com). Keep only what is stated. Use url=null
-   when it is mentioned but no usable URL/domain is stated.
+   when it is mentioned but no usable URL/domain is stated.(if The transcript contains any company name their official link must be considered.)
 5. details: list only dates, book titles, person names, and competitions explicitly stated. For every
    unambiguous date, use ISO YYYY-MM-DD so the user can add it to their calendar in one click; preserve
    an ambiguous date exactly as spoken. Never infer missing data. Empty lists are correct.
