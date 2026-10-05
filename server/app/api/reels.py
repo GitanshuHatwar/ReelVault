@@ -25,6 +25,7 @@ def _out(reel: dict, cached: bool = False) -> ReelOut:
     caption = post.get("caption")
     transcript_status = "verified" if transcript else "ambiguous" if caption else "unavailable"
     raw = post.get("raw") if isinstance(post.get("raw"), dict) else {}
+    analysis_error = raw.get("reel_analysis_error") if isinstance(raw.get("reel_analysis_error"), dict) else {}
     return ReelOut(
         reel_id=reel["id"],
         platform=post.get("platform") or "instagram",
@@ -35,6 +36,8 @@ def _out(reel: dict, cached: bool = False) -> ReelOut:
         caption=caption,
         transcript_status=transcript_status,
         analysis=raw.get("reel_analysis"),
+        analysis_error_code=analysis_error.get("code"),
+        analysis_error=analysis_error.get("message"),
         created_at=reel["created_at"],
         cached=cached,
     )
