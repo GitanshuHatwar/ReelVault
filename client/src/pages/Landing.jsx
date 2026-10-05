@@ -44,7 +44,7 @@ export default function Landing() {
 
       <main>
         {/* HERO SECTION */}
-        <section className="max-w-[1400px] 2xl:max-w-[1600px] w-full mx-auto px-6 pt-4 md:pt-16 pb-20 md:pb-32 flex flex-col lg:flex-row items-center lg:items-start gap-16 lg:gap-8">
+        <section className="max-w-[1400px] w-full mx-auto px-6 lg:px-16 xl:px-24 pt-4 md:pt-16 pb-20 md:pb-32 flex flex-col lg:flex-row items-center lg:items-start gap-16 lg:gap-12">
           
           {/* LEFT: Copy */}
           <div className="flex-1 w-full lg:max-w-2xl flex flex-col items-start pt-4 lg:pt-8">
@@ -95,7 +95,7 @@ export default function Landing() {
           </div>
 
           {/* RIGHT: Mockup */}
-          <div className="flex-1 w-full flex justify-center lg:justify-end relative mt-12 lg:mt-0 lg:pl-10">
+          <div className="flex-1 w-full flex justify-center lg:justify-center relative mt-12 lg:mt-0">
             {/* The Reel Container */}
             <div className="w-full max-w-[280px] sm:max-w-[320px] md:max-w-[350px] relative">
               
