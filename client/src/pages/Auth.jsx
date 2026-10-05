@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Play, Eye, EyeOff } from 'lucide-react';
+import { Play, Eye, EyeOff, Sparkles, ArrowRight } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { ApiError } from '../services/api';
 import { useAuth } from '../auth/useAuth';
@@ -22,10 +22,11 @@ export default function Auth() {
 
   const validate = () => {
     const newErrors = {};
-    if (!email) {
-      newErrors.email = "Email is required.";
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = "Enter a valid email address.";
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      newErrors.email = "Email or username is required.";
+    } else if (trimmedEmail.toLowerCase() !== 'admin' && !/\S+@\S+\.\S+/.test(trimmedEmail)) {
+      newErrors.email = "Enter a valid email address (or 'admin' for prototyping).";
     }
     
     if (!password) {
@@ -50,10 +51,10 @@ export default function Auth() {
     setIsSubmitting(true);
     try {
       if (isLogin) {
-        await signIn(email, password);
+        await signIn(email.trim(), password);
         navigate('/home');
       } else {
-        const result = await signUp(email, password);
+        const result = await signUp(email.trim(), password);
         if (result.session) {
           navigate('/home');
         } else {
@@ -63,6 +64,19 @@ export default function Auth() {
       }
     } catch (error) {
       setSubmitError(error instanceof ApiError ? error.message : 'Unable to connect to ReelVault. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleQuickAdminLogin = async () => {
+    setIsSubmitting(true);
+    setSubmitError('');
+    try {
+      await signIn('admin', 'admin');
+      navigate('/home');
+    } catch (error) {
+      setSubmitError(error instanceof ApiError ? error.message : 'Unable to complete admin login.');
     } finally {
       setIsSubmitting(false);
     }
@@ -124,10 +138,37 @@ export default function Auth() {
         <div className="w-full max-w-md bg-white rounded-3xl p-8 sm:p-10 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-gray-100 mt-12 lg:mt-0">
           
           <h2 className="text-2xl sm:text-3xl font-bold text-[#1a1a1a] mb-2 tracking-tight">Welcome to ReelVault</h2>
-          <p className="text-gray-500 mb-8 text-sm font-medium">Sign in to save reel titles and transcripts.</p>
+          <p className="text-gray-500 mb-6 text-sm font-medium">Sign in to save reel titles and transcripts.</p>
+
+          {/* Offline Prototyping Quick Access Card */}
+          {isLogin && (
+            <div className="mb-6 p-4 rounded-2xl bg-[#F5F3E9] border border-[#114b43]/15 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#114b43] flex items-center gap-1.5">
+                  <Sparkles size={14} className="text-[#114b43]" />
+                  Prototyping Mode
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#114b43] text-[#d4f954]">
+                  No Backend Needed
+                </span>
+              </div>
+              <p className="text-xs text-gray-600 leading-relaxed font-medium">
+                Access the complete website with mock reels, verified research, and calendar offline.
+              </p>
+              <button
+                type="button"
+                onClick={handleQuickAdminLogin}
+                disabled={isSubmitting}
+                className="w-full py-2.5 px-4 rounded-xl bg-[#114b43] hover:bg-[#0e3d36] text-[#d4f954] text-xs font-bold uppercase tracking-wider transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs disabled:opacity-60"
+              >
+                <span>Quick Login as Admin</span>
+                <ArrowRight size={14} />
+              </button>
+            </div>
+          )}
 
           {/* Toggle Tabs */}
-          <div className="flex bg-[#F5F3E9] p-1 rounded-xl mb-8">
+          <div className="flex bg-[#F5F3E9] p-1 rounded-xl mb-6">
             <button 
               onClick={() => { setIsLogin(true); setErrors({}); setSubmitError(''); }}
               className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-colors ${isLogin ? 'bg-white shadow-sm text-[#1a1a1a]' : 'text-gray-500 hover:text-[#1a1a1a]'}`}
@@ -159,19 +200,27 @@ export default function Auth() {
             )}
 
             <div className="space-y-1.5">
-              <label className="block text-sm font-semibold text-[#1a1a1a]">Email</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-semibold text-[#1a1a1a]">Email or username</label>
+                {isLogin && <span className="text-[11px] font-medium text-gray-400">admin for offline</span>}
+              </div>
               <input 
-                type="email" 
-                placeholder="you@example.com" 
+                type="text" 
+                placeholder="you@example.com or admin" 
                 value={email} 
                 onChange={(e) => setEmail(e.target.value)}
+                autoCapitalize="none"
+                autoCorrect="off"
                 className={`w-full px-4 py-3 bg-[#fdfdfc] border ${errors.email ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-[#114b43] focus:ring-[#114b43]'} rounded-xl text-[#1a1a1a] placeholder:text-gray-400 focus:outline-none focus:ring-1 transition-colors`}
               />
               {errors.email && <p className="text-red-500 text-xs font-medium">{errors.email}</p>}
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-sm font-semibold text-[#1a1a1a]">Password</label>
+              <div className="flex items-center justify-between">
+                <label className="block text-sm font-semibold text-[#1a1a1a]">Password</label>
+                {isLogin && <span className="text-[11px] font-medium text-gray-400">admin for offline</span>}
+              </div>
               <div className="relative">
                 <input 
                   type={showPassword ? 'text' : 'password'} 
@@ -183,7 +232,7 @@ export default function Auth() {
                 <button 
                   type="button" 
                   onClick={() => setShowPassword(!showPassword)} 
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none cursor-pointer"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -222,7 +271,7 @@ export default function Auth() {
               </div>
             )}
 
-            <Button disabled={isSubmitting} type="submit" className="w-full bg-[#114b43] text-white hover:bg-[#18564c] hover:shadow-md py-3.5 text-base mt-2 rounded-xl disabled:opacity-60">
+            <Button disabled={isSubmitting} type="submit" className="w-full bg-[#114b43] text-white hover:bg-[#18564c] hover:shadow-md py-3.5 text-base mt-2 rounded-xl disabled:opacity-60 cursor-pointer">
               {isSubmitting ? 'Please wait…' : isLogin ? 'Log in' : 'Create account'}
             </Button>
             {submitError && <p className="text-sm font-medium text-red-600 text-center">{submitError}</p>}
@@ -230,7 +279,7 @@ export default function Auth() {
 
           {isLogin && (
             <>
-              <div className="my-7 flex items-center gap-4">
+              <div className="my-6 flex items-center gap-4">
                 <div className="flex-1 h-px bg-gray-200"></div>
                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">OR</span>
                 <div className="flex-1 h-px bg-gray-200"></div>
@@ -250,9 +299,9 @@ export default function Auth() {
 
           <div className="mt-8 text-center text-sm text-gray-500 font-medium">
             {isLogin ? (
-              <>Don't have an account? <button onClick={() => { setIsLogin(false); setErrors({}); setSubmitError(''); }} className="text-[#114b43] font-bold hover:underline">Sign up</button></>
+              <>Don't have an account? <button onClick={() => { setIsLogin(false); setErrors({}); setSubmitError(''); }} className="text-[#114b43] font-bold hover:underline cursor-pointer">Sign up</button></>
             ) : (
-              <>Already have an account? <button onClick={() => { setIsLogin(true); setErrors({}); setSubmitError(''); }} className="text-[#114b43] font-bold hover:underline">Log in</button></>
+              <>Already have an account? <button onClick={() => { setIsLogin(true); setErrors({}); setSubmitError(''); }} className="text-[#114b43] font-bold hover:underline cursor-pointer">Log in</button></>
             )}
           </div>
           
