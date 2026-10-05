@@ -166,7 +166,7 @@ export const api = {
 
   startResearch: async (reelId, body = {}) => {
     if (isMockSession()) {
-      return mockStore.startResearch(reelId);
+      return mockStore.startResearch(reelId, body);
     }
     return request(`/v1/reels/${reelId}/deep-cook`, { method: 'POST', body });
   },

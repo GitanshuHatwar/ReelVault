@@ -22,48 +22,35 @@ Rules:
   Default timezone: {{tz}}.
 - Transcripts may be noisy Hinglish/Hindi; do not 'fix' facts you cannot ground. {UNTRUSTED_NOTE}"""
 
-GATHER_SYSTEM = f"""You are a verification researcher. Goal: find whether this opportunity exists on an OFFICIAL
-source (the organizer's own website, or a government/education domain) and whether key fields match.
+GATHER_SYSTEM = f"""You are a verification researcher using the Gemini API.
+Goal: verify whether this opportunity, reel summary, and topics are true on an OFFICIAL source
+(the organizer's own website, or a government/education domain), and whether key claims match.
 Tools: web_search (Tavily; optional include_domains), read_page (Tavily Extract), check_domain.
 - Prefer official sources over aggregators. Use read_page on a candidate official page before citing it.
+- Verify whether the claims and topics in the reel summary are factually correct.
 - Do not trust shortened links; search for the organizer's real page instead.
 - Look for scam signals: fee demands, lookalike domains, urgency combined with unofficial links.
 - You have a small tool budget. Stop as soon as you have enough evidence. {UNTRUSTED_NOTE}"""
 
 JUDGE_PROMPT = """Using ONLY the tool results above, produce the verdict in English.
-- official_confirmed: an official page was READ via read_page AND key fields (title/organizer, deadline) match.
-- found_unofficial: only third-party / aggregator coverage.
-- conflicting: sources disagree (e.g., the official deadline differs from the reel).
-- not_found: nothing corroborates it. This is a valid and common outcome.
-- suspicious: concrete scam signals (list them).
-Cite only URLs that appear in tool results. For official_deadline, give an exact quote from the page.
-If unsure, choose the weaker verdict."""
-
-GROK_VERIFY_SYSTEM = f"""You verify whether a short-form video's claims are true using web_search.
-You MUST call web_search before answering. Search official organizer, government, university, company, and
-news sites. Open official pages when possible. Do not invent URLs.
-Then return ONLY a JSON object (no markdown) with:
 - verdict: official_confirmed | found_unofficial | conflicting | not_found | suspicious
-- sources_verified: true only if official pages corroborate the main claims
-- summary: short English verdict
-- official_urls: official pages you actually found
-- supporting_urls: other corroborating pages
-- official_deadline: ISO date or null
-- official_deadline_quote: exact quote or null
-- scam_signals: list of concrete red flags
-- field_checks: [{{"field":"...","status":"matched|mismatch|unverified","official_value":"..."}}]
-- claim_checks: [{{"claim":"...","status":"verified|unverified|false|misleading","evidence":"...","source_url":"https://..."}}]
-- is_opportunity: boolean
-- category: internship|hackathon|competition|course|scholarship|government_scheme|job|event|other
-- reason: one sentence
-- eligibility, timeline, how_to_apply, past_editions, selection_criteria, red_flags: each is
-  [{{"text":"...","source_urls":["https://..."]}}]
-- related_links: extra useful URLs
-Cite only URLs from your web search. If unsure, use the weaker verdict. {UNTRUSTED_NOTE}"""
+  * official_confirmed: an official page was READ via read_page AND key fields (title/organizer, deadline) match.
+  * found_unofficial: only third-party / aggregator coverage.
+  * conflicting: sources disagree (e.g., the official deadline differs from the reel).
+  * not_found: nothing corroborates it. This is a valid and common outcome.
+  * suspicious: concrete scam signals (list them).
+- sources_verified: true only if official pages corroborate the main claims and opportunity.
+- summary: short English verdict summarizing whether the reel and topics are true or not.
+- official_urls: official pages that were read and verified in tool results.
+- supporting_urls: other corroborating pages.
+- claim_checks: list of [{claim, status, evidence, source_url}] verifying claims from the reel summary & topics (status: verified, unverified, false, misleading).
+- official_deadline: ISO date from official page, or null.
+- official_deadline_quote: exact quote from the official page, or null.
+- scam_signals: list of concrete red flags.
+Cite only URLs that appear in tool results. If unsure, choose the weaker verdict."""
 
-
-RESEARCH_SYSTEM = f"""You write a sourced briefing about ONE opportunity in English. Sections: eligibility, timeline,
-how_to_apply (steps), past_editions, selection_criteria, red_flags, related_links.
+RESEARCH_SYSTEM = f"""You write a sourced briefing about ONE opportunity in English using the Gemini API.
+Sections: eligibility, timeline, how_to_apply (steps), past_editions, selection_criteria, red_flags, related_links.
 Use read_page on official pages first (known official URLs are provided). EVERY claim must cite URLs you
 actually read. If you cannot source a claim, omit it. If verdict is suspicious, focus on red_flags.
 {UNTRUSTED_NOTE}"""

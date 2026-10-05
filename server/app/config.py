@@ -37,8 +37,6 @@ class Settings(BaseSettings):
     gemini_api_key_2: str = ""
     gemini_api_key_3: str = ""
     gemini_api_keys: list[str] | str = []
-    xai_api_key: str = Field(default="", validation_alias=AliasChoices("XAI_API_KEY", "GROK_API_KEY"))
-    grok_model: str = "grok-4-fast"
     llm_model_fast: str = "gemini-3.5-flash-lite"
     llm_model_main: str = "gemini-3.5-flash-lite"
     # Fail fast per key so we can immediately rotate/fallback to the next
@@ -49,7 +47,6 @@ class Settings(BaseSettings):
     deep_per_day: int = 10
     verify_max_tool_calls: int = 6
     verify_timeout_s: int = 45
-    grok_timeout_s: int = 90
     research_max_tool_calls: int = 10
     research_timeout_s: int = 90
     stale_job_minutes: int = 15

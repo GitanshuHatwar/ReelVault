@@ -3,31 +3,64 @@ from langchain_core.messages import HumanMessage
 from app.config import get_settings
 from app.errors import PipelineError
 from app.llm import get_llm
-from app.schemas.domain import Extracted, Verdict, VerdictDraft, VerificationResult
+from app.schemas.domain import ClaimCheck, Extracted, Verdict, VerdictDraft, VerificationResult
 from app.services.deep_cook import prompts as P
 from app.services.deep_cook.ground import contains
 from app.services.deep_cook.tool_loop import LoopStats, gather_evidence
 from app.services.tools.toolkit import ToolRun, build_tools
 
 
-def verify(ex: Extracted, run: ToolRun, *, tools_factory=build_tools) -> tuple[VerificationResult, LoopStats]:
+def verify(
+    ex: Extracted,
+    run: ToolRun,
+    *,
+    summary: str | None = None,
+    summary_points: list[str] | None = None,
+    topics: list[str] | None = None,
+    tools_factory=build_tools,
+) -> tuple[VerificationResult, LoopStats]:
     s = get_settings()
     llm = get_llm("main")
+
+    parts: list[str] = [
+        "Verify this claimed opportunity, reel summary, and topics using web search:",
+        P.wrap("claim", ex.model_dump_json(exclude_none=True, indent=2)),
+    ]
+    if summary and summary.strip():
+        parts.append(f"Reel Summary to verify:\n{summary.strip()}")
+    if summary_points:
+        clean_pts = [p.strip() for p in summary_points if isinstance(p, str) and p.strip()]
+        if clean_pts:
+            parts.append("Key Summary Points:\n" + "\n".join(f"- {p}" for p in clean_pts))
+    if topics:
+        clean_topics = [t.strip() for t in topics if isinstance(t, str) and t.strip()]
+        if clean_topics:
+            parts.append("Topics to verify:\n" + ", ".join(clean_topics))
+
+    prompt_text = "\n\n".join(parts)
+
     messages, stats = gather_evidence(
         llm,
         tools_factory(run),
         P.GATHER_SYSTEM,
-        "Verify this claimed opportunity:\n" + P.wrap("claim", ex.model_dump_json(exclude_none=True, indent=2)),
+        prompt_text,
         max_calls=s.verify_max_tool_calls,
         timeout_s=s.verify_timeout_s,
     )
     if stats.calls > 0 and stats.ok == 0:
         raise PipelineError("search_unavailable")
     draft = llm.with_structured_output(VerdictDraft).invoke(messages + [HumanMessage(P.JUDGE_PROMPT)])
-    return apply_guard(draft, run, ex), stats
+    return apply_guard(draft, run, ex, summary=summary, summary_points=summary_points, topics=topics), stats
 
 
-def apply_guard(draft: VerdictDraft, run: ToolRun, ex: Extracted) -> VerificationResult:
+def apply_guard(
+    draft: VerdictDraft,
+    run: ToolRun,
+    ex: Extracted,
+    summary: str | None = None,
+    summary_points: list[str] | None = None,
+    topics: list[str] | None = None,
+) -> VerificationResult:
     """Deterministic. The LLM proposes; code disposes. When unsure, DOWNGRADE."""
     notes: list[str] = []
     verdict = draft.verdict
@@ -67,6 +100,66 @@ def apply_guard(draft: VerdictDraft, run: ToolRun, ex: Extracted) -> Verificatio
         verdict = Verdict.NOT_FOUND
         notes.append("suspicious without concrete signals -> not_found")
 
+    sources_verified = bool(
+        (draft.sources_verified or verdict == Verdict.OFFICIAL_CONFIRMED) and len(official) > 0
+    )
+
+    claim_checks: list[ClaimCheck] = []
+    for cc in draft.claim_checks:
+        status = cc.status if (cc.status != "verified" or sources_verified) else "unverified"
+        source_url = cc.source_url if (cc.source_url in run.seen_urls) else (official[0] if official else None)
+        claim_checks.append(
+            ClaimCheck(
+                claim=cc.claim,
+                status=status,
+                evidence=cc.evidence,
+                source_url=source_url,
+            )
+        )
+
+    if not claim_checks:
+        if summary_points:
+            for pt in summary_points:
+                claim_checks.append(
+                    ClaimCheck(
+                        claim=pt,
+                        status="verified" if sources_verified else "unverified",
+                        evidence=draft.summary,
+                        source_url=official[0] if official else (support[0] if support else None),
+                    )
+                )
+        elif topics:
+            for top in topics:
+                claim_checks.append(
+                    ClaimCheck(
+                        claim=f"Topic: {top}",
+                        status="verified" if sources_verified else "unverified",
+                        evidence=draft.summary,
+                        source_url=official[0] if official else (support[0] if support else None),
+                    )
+                )
+        else:
+            if ex.title.value:
+                claim_checks.append(
+                    ClaimCheck(
+                        claim=f"Opportunity Title: {ex.title.value}",
+                        status="verified" if sources_verified else "unverified",
+                        evidence=draft.summary,
+                        source_url=official[0] if official else (support[0] if support else None),
+                    )
+                )
+            if ex.organizer.value:
+                claim_checks.append(
+                    ClaimCheck(
+                        claim=f"Organizer: {ex.organizer.value}",
+                        status="verified" if sources_verified else "unverified",
+                        evidence=draft.summary,
+                        source_url=official[0] if official else (support[0] if support else None),
+                    )
+                )
+
+    notes.append("Verified via Gemini API web search pipeline")
+
     return VerificationResult(
         verdict=verdict,
         summary=draft.summary,
@@ -76,4 +169,6 @@ def apply_guard(draft: VerdictDraft, run: ToolRun, ex: Extracted) -> Verificatio
         official_deadline=official_deadline,
         scam_signals=draft.scam_signals,
         guard_notes=notes,
+        sources_verified=sources_verified,
+        claim_checks=claim_checks,
     )

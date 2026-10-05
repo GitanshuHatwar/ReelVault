@@ -7,14 +7,18 @@ import {
   BookmarkPlus,
   CalendarPlus,
   CalendarDays,
+  CheckCircle2,
   ExternalLink,
   Eye,
+  Globe,
   LoaderCircle,
   List,
   Link2,
   Search,
+  ShieldCheck,
   Sparkles,
   Trash2,
+  XCircle,
 } from "lucide-react";
 import { api, ApiError } from "../services/api";
 import { useAuth } from "../auth/useAuth";
@@ -147,121 +151,524 @@ function ReelAnalysisPanel({ reel, onSaveLink, onSaveDate, onSaveToLinkVault, sa
 
 function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete }) {
   const [openId, setOpenId] = useState(null);
+  const [topicInputs, setTopicInputs] = useState({});
+
+  const handleTopicChange = (reelId, val) => {
+    setTopicInputs((prev) => ({ ...prev, [reelId]: val }));
+  };
+
+  const handleVerifyTopic = (reel, specificTopic) => {
+    onResearch(reel, specificTopic);
+  };
+
   const completed = reels
     .map((reel) => ({ reel, result: researchByReel[reel.reel_id] }))
     .filter(
       ({ result }) =>
         result?.status === "done" || result?.status === "not_opportunity",
     );
+
   return (
-    <section
-      className="pt-2"
-      aria-label="Deep Fridge"
-    >
+    <section className="pt-2" aria-label="Deep Fridge">
       <div className="mb-6">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">
-          Deep Fridge
-        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">
+            Deep Fridge
+          </p>
+          <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
+            Gemini AI & Web Search
+          </span>
+        </div>
         <h2 className="font-display text-3xl tracking-wide uppercase text-[#1a1a1a] mt-1">
-          SAVED REELS & DEEP RESEARCH
+          TRUTH VERIFICATION & DEEP RESEARCH
         </h2>
         <p className="text-gray-600 font-medium mt-2">
-          Review compact reels here, then research or remove them without leaving Deep Fridge.
+          Search for the truth of topics, verify reel correctness with Gemini AI real-time web search, and inspect evidence-backed official sources.
         </p>
       </div>
-      {reels.length > 0 && <div className="mb-8 space-y-4">{reels.map((reel) => {
-        const result = researchByReel[reel.reel_id];
-        const researching = result && ACTIVE_STATUSES.has(result.status);
-        const text = displayContent(reel, language);
-        const expanded = openId === reel.reel_id;
-        return <article key={reel.reel_id} className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">{reel.platform} · saved {formatDate(reel.created_at)}</p><h3 className="mt-1 font-bold text-[#1a1a1a]">{reel.title}</h3></div><button type="button" onClick={() => onDelete(reel.reel_id)} className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500" title="Remove from vault"><Trash2 size={15} /> Remove</button></div>{reel.analysis_error && <p role="alert" className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-900"><strong>Reel saved.</strong> {reel.analysis_error}</p>}<div className="mt-4"><StructuredTranscript text={text} expanded={expanded} /></div>{text.length > 180 && <button type="button" onClick={() => setOpenId(expanded ? null : reel.reel_id)} className="mt-3 text-xs font-bold uppercase tracking-widest text-[#114b43] hover:underline">{expanded ? "Show less" : "Show more"}</button>}<div className="mt-4 flex flex-wrap items-center gap-4"><a href={reel.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-blue-600 underline underline-offset-4"><ExternalLink size={13} /> Open original</a><button type="button" onClick={() => onResearch(reel)} disabled={researching} className="inline-flex items-center gap-2 rounded-lg bg-[#114b43] px-3 py-2 text-xs font-bold uppercase tracking-widest text-white disabled:opacity-60"><Sparkles size={14} />{researching ? "Researching…" : "Research"}</button></div>{researching && <p className="mt-3 flex items-center gap-2 text-sm text-[#114b43]"><LoaderCircle size={15} className="animate-spin" /> Verification in progress…</p>}{result?.status === "failed" && <p role="alert" className="mt-3 text-sm text-amber-800">Research could not run{result.error_code === "ai_rate_limited" ? " because the Gemini quota or rate limit was reached." : "."}</p>}</article>;
-      })}</div>}
+
+      {reels.length > 0 && (
+        <div className="mb-8 space-y-5">
+          {reels.map((reel) => {
+            const result = researchByReel[reel.reel_id];
+            const researching = result && ACTIVE_STATUSES.has(result.status);
+            const text = displayContent(reel, language);
+            const expanded = openId === reel.reel_id;
+            const customTopic = topicInputs[reel.reel_id] || "";
+            const reelTopics = [
+              ...new Set([
+                ...(reel.analysis?.tags || []),
+                ...(reel.analysis?.details?.competitions || []),
+                ...(reel.analysis?.details?.people || []),
+                ...(reel.analysis?.details?.books || []),
+              ]),
+            ];
+
+            return (
+              <article
+                key={reel.reel_id}
+                className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                      {reel.platform} · saved {formatDate(reel.created_at)}
+                    </p>
+                    <h3 className="mt-1 font-bold text-lg text-[#1a1a1a]">{reel.title}</h3>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => onDelete(reel.reel_id)}
+                    className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500"
+                    title="Remove from vault"
+                  >
+                    <Trash2 size={15} /> Remove
+                  </button>
+                </div>
+
+                {reel.analysis_error && (
+                  <p
+                    role="alert"
+                    className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-900"
+                  >
+                    <strong>Reel saved.</strong> {reel.analysis_error}
+                  </p>
+                )}
+
+                {/* Reel Summary Being Sent for Truth Verification */}
+                {reel.analysis?.summary && (
+                  <div className="mt-4 rounded-xl border border-[#114b43]/15 bg-[#F5F3E9] p-4">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] mb-1">
+                      Reel Summary (to verify)
+                    </p>
+                    <p className="text-sm font-medium text-gray-800">{reel.analysis.summary}</p>
+                    {reel.analysis.summary_points?.length > 0 && (
+                      <ul className="mt-2.5 space-y-1 text-xs text-gray-600">
+                        {reel.analysis.summary_points.map((pt, idx) => (
+                          <li key={idx} className="flex items-start gap-2">
+                            <span className="text-[#114b43] font-bold">•</span>
+                            <span>{pt}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                )}
+
+                {/* Topics to Verify */}
+                {reelTopics.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                      Topics to search for truth:
+                    </p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {reelTopics.map((topic) => (
+                        <button
+                          key={topic}
+                          type="button"
+                          onClick={() => handleVerifyTopic(reel, topic)}
+                          disabled={researching}
+                          className="inline-flex items-center gap-1.5 rounded-full bg-white border border-[#114b43]/30 px-3 py-1 text-xs font-semibold text-[#114b43] hover:bg-[#F5F3E9] transition-colors disabled:opacity-50"
+                          title={`Search truth for topic: ${topic}`}
+                        >
+                          <Search size={11} /> {topic}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Custom Topic Search Field */}
+                <div className="mt-4 flex flex-wrap items-center gap-2">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search
+                      size={14}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Search truth of a specific topic or claim..."
+                      value={customTopic}
+                      onChange={(e) => handleTopicChange(reel.reel_id, e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && customTopic.trim() && !researching) {
+                          handleVerifyTopic(reel, customTopic.trim());
+                        }
+                      }}
+                      className="w-full rounded-lg border border-gray-200 pl-8 pr-3 py-1.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#114b43]"
+                    />
+                  </div>
+                  {customTopic.trim() && (
+                    <button
+                      type="button"
+                      disabled={researching}
+                      onClick={() => handleVerifyTopic(reel, customTopic.trim())}
+                      className="inline-flex items-center gap-1 rounded-lg bg-[#114b43] px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#0c352f] disabled:opacity-50"
+                    >
+                      Search Truth
+                    </button>
+                  )}
+                </div>
+
+                {/* Spoken Transcript */}
+                <div className="mt-4">
+                  <StructuredTranscript text={text} expanded={expanded} />
+                </div>
+                {text.length > 180 && (
+                  <button
+                    type="button"
+                    onClick={() => setOpenId(expanded ? null : reel.reel_id)}
+                    className="mt-2 text-xs font-bold uppercase tracking-widest text-[#114b43] hover:underline"
+                  >
+                    {expanded ? "Show less" : "Show more"}
+                  </button>
+                )}
+
+                {/* Primary Action Buttons */}
+                <div className="mt-5 flex flex-wrap items-center gap-4 pt-3 border-t border-gray-100">
+                  <a
+                    href={reel.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-blue-600 underline underline-offset-4"
+                  >
+                    <ExternalLink size={13} /> Open original
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => onResearch(reel, customTopic || null)}
+                    disabled={researching}
+                    className="inline-flex items-center gap-2 rounded-lg bg-[#114b43] px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-[#0c352f] disabled:opacity-60 transition-colors shadow-xs"
+                  >
+                    <Sparkles size={14} />
+                    {researching ? "Verifying Truth via Gemini…" : "Search Truth & Verify (Gemini AI)"}
+                  </button>
+                  <a
+                    href={`https://www.google.com/search?q=${encodeURIComponent(
+                      `${reel.title} official source registration`
+                    )}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-[#114b43]"
+                  >
+                    <Globe size={13} /> Web search
+                  </a>
+                </div>
+
+                {researching && (
+                  <div className="mt-3.5 flex items-center gap-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200 px-4 py-3 text-sm text-[#114b43]">
+                    <LoaderCircle size={17} className="animate-spin text-[#114b43]" />
+                    <div>
+                      <p className="font-bold">Verifying truth with Gemini AI real-time web search…</p>
+                      <p className="text-xs text-emerald-800">
+                        Analyzing summary, topics, and cross-referencing official portals and claims.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {result?.status === "failed" && (
+                  <p role="alert" className="mt-3 text-sm text-amber-800">
+                    Verification could not run
+                    {result.error_code === "ai_rate_limited"
+                      ? " because the AI quota or rate limit was reached."
+                      : result.error_code === "gemini_unconfigured"
+                      ? " because the Gemini API key is not configured in server/.env."
+                      : "."}
+                  </p>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
       {completed.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500">
-          Select Research on a reel above to see detailed findings here.
+        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
+          <p className="font-semibold text-gray-700">No verification reports yet.</p>
+          <p className="mt-1">
+            Click <strong>Search Truth & Verify (Gemini AI)</strong> on any reel above to check topic truth and official sources.
+          </p>
         </div>
       ) : (
-        <div className="space-y-5">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">
+              Verified Opportunity Briefings & Truth Reports
+            </h3>
+            <span className="text-xs font-bold text-gray-400">
+              {completed.length} {completed.length === 1 ? "report" : "reports"}
+            </span>
+          </div>
+
           {completed.map(({ reel, result }) => {
             const verification = result.verification;
             const report = result.report;
+            const isVerified = verification?.sources_verified || verification?.verdict === "official_confirmed";
+
             return (
               <article
                 key={result.id}
                 className="bg-white rounded-[1.5rem] border border-gray-100 p-6 shadow-sm"
               >
-                <h3 className="text-lg font-bold text-[#1a1a1a]">
-                  {reel.title}
-                </h3>
-                <p className="mt-1 text-xs font-bold uppercase tracking-widest text-[#114b43]">
-                  {verification?.verdict?.replaceAll("_", " ") ||
-                    "Not an opportunity"}
-                </p>
-                {verification?.summary && (
-                  <p className="mt-3 text-gray-700">{verification.summary}</p>
-                )}
-                <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm text-gray-600">
-                  <span><strong>Saved:</strong> {formatDate(reel.created_at)}</span>
-                  {result.created_at && <span><strong>Researched:</strong> {formatDate(result.created_at)}</span>}
-                  {verification?.official_deadline && <span><strong>Official deadline:</strong> {formatDate(verification.official_deadline)}</span>}
+                {/* Header with Title and Green Tick */}
+                <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-gray-100">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                      {isVerified ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-300 px-3 py-1 text-xs font-bold text-emerald-800">
+                          <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+                          Sources Verified
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-xs font-bold text-amber-800">
+                          <AlertCircle size={16} className="text-amber-600 shrink-0" />
+                          Sources Unconfirmed
+                        </span>
+                      )}
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                        {verification?.verdict?.replaceAll("_", " ") || "Not an opportunity"}
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-bold text-[#1a1a1a]">{reel.title}</h3>
+                  </div>
+
+                  <div className="text-right text-xs text-gray-500">
+                    <p><strong>Saved:</strong> {formatDate(reel.created_at)}</p>
+                    {result.created_at && (
+                      <p className="mt-0.5"><strong>Verified:</strong> {formatDate(result.created_at)}</p>
+                    )}
+                  </div>
                 </div>
-                {report && (
-                  <div className="mt-5 grid gap-5 md:grid-cols-2">
-                    {REPORT_SECTIONS.map(
-                      ([key, heading]) =>
-                        report[key]?.length > 0 && (
-                          <div key={key}>
-                            <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">
-                              {heading}
-                            </h4>
-                            <ul className="space-y-2 text-sm text-gray-700">
-                              {report[key].map((claim, claimIndex) => (
-                                <li key={`${key}-${claimIndex}`}>
-                                  <p>{claim.text}</p>
-                                  {claim.source_urls?.map((url) => (
-                                    <a
-                                      key={url}
-                                      href={url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="text-blue-600 underline underline-offset-2 hover:text-blue-800"
-                                    >
-                                      Source
-                                    </a>
-                                  ))}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        ),
+
+                {/* Gemini Verification Summary */}
+                {verification?.summary && (
+                  <div className={`mt-4 rounded-xl p-4 border ${
+                    isVerified ? "bg-emerald-50/60 border-emerald-200" : "bg-[#F5F3E9] border-gray-200"
+                  }`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      {isVerified && <CheckCircle2 size={15} className="text-emerald-600" />}
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#114b43]">
+                        Gemini Truth & Correctness Summary
+                      </p>
+                    </div>
+                    <p className="text-sm font-medium leading-relaxed text-gray-800">
+                      {verification.summary}
+                    </p>
+                    {verification?.official_deadline && (
+                      <p className="mt-2 text-xs font-bold text-[#114b43]">
+                        Official Deadline: {formatDate(verification.official_deadline)}
+                      </p>
                     )}
                   </div>
                 )}
+
+                {/* Official Search Links */}
                 {verification?.official_urls?.length > 0 && (
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    {verification.official_urls.map((url) => (
-                      <a
-                        key={url}
-                        href={url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-800"
-                      >
-                        Official source
-                      </a>
-                    ))}
+                  <div className="mt-5 rounded-xl bg-gray-50 border border-gray-100 p-4">
+                    <div className="flex items-center justify-between mb-2.5">
+                      <div className="flex items-center gap-1.5">
+                        <ShieldCheck size={16} className="text-emerald-600" />
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-gray-700">
+                          Official Search Sources & Links
+                        </h4>
+                      </div>
+                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                        Verified Official
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2.5">
+                      {verification.official_urls.map((url, idx) => (
+                        <a
+                          key={`${url}-${idx}`}
+                          href={url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-gray-200 px-3 py-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 hover:border-blue-300 transition-colors shadow-2xs"
+                        >
+                          <ExternalLink size={13} className="shrink-0" />
+                          <span className="truncate max-w-[280px]">{url}</span>
+                        </a>
+                      ))}
+                    </div>
                   </div>
                 )}
-                {report?.related_links?.length > 0 && (
-                  <div className="mt-5">
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Research links</h4>
-                    <div className="flex flex-wrap gap-3">{report.related_links.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="text-sm font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-800">{url}</a>)}</div>
+
+                {/* Supporting Search Links */}
+                {verification?.supporting_urls?.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
+                      Web Search Citations & Discussions
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {verification.supporting_urls.map((url, idx) => {
+                        let hostname = url;
+                        try {
+                          hostname = new URL(url).hostname;
+                        } catch {
+                          hostname = url;
+                        }
+                        return (
+                          <a
+                            key={`${url}-${idx}`}
+                            href={url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                          >
+                            <Globe size={11} /> {hostname}
+                          </a>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
+
+                {/* Content of the Reel Verified (Claim Checks) */}
+                {verification?.claim_checks?.length > 0 && (
+                  <div className="mt-6 border-t border-gray-100 pt-5">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-3 flex items-center gap-2">
+                      <span>Reel Content & Claim Verification</span>
+                      <span className="text-[10px] text-gray-400 lowercase">({verification.claim_checks.length} claims verified)</span>
+                    </h4>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {verification.claim_checks.map((claim, cIdx) => {
+                        const status = claim.status?.toLowerCase();
+                        const isClaimVerified = status === "verified" || status === "matched";
+                        const isClaimFalse = status === "false" || status === "misleading";
+                        return (
+                          <div
+                            key={cIdx}
+                            className={`rounded-xl border p-3.5 flex flex-col justify-between ${
+                              isClaimVerified
+                                ? "bg-emerald-50/40 border-emerald-200/80"
+                                : isClaimFalse
+                                ? "bg-red-50/40 border-red-200/80"
+                                : "bg-[#F5F3E9] border-gray-200"
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-start justify-between gap-2 mb-1.5">
+                                <p className="text-xs font-bold text-gray-900 leading-snug">
+                                  {claim.claim}
+                                </p>
+                                {isClaimVerified ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 shrink-0">
+                                    <CheckCircle2 size={11} /> Verified
+                                  </span>
+                                ) : isClaimFalse ? (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800 shrink-0">
+                                    <XCircle size={11} /> False
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 shrink-0">
+                                    <AlertCircle size={11} /> Unverified
+                                  </span>
+                                )}
+                              </div>
+                              {claim.evidence && (
+                                <p className="text-xs text-gray-600 leading-relaxed mt-1">
+                                  <strong className="text-gray-700">Evidence:</strong> {claim.evidence}
+                                </p>
+                              )}
+                            </div>
+                            {claim.source_url && (
+                              <div className="mt-2.5 pt-2 border-t border-gray-200/60">
+                                <a
+                                  href={claim.source_url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline truncate max-w-full"
+                                >
+                                  <ExternalLink size={10} /> Source link
+                                </a>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Research Report Sections */}
+                {report && (
+                  <div className="mt-6 border-t border-gray-100 pt-5">
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
+                      Detailed Research Briefing
+                    </h4>
+                    <div className="grid gap-5 md:grid-cols-2">
+                      {REPORT_SECTIONS.map(
+                        ([key, heading]) =>
+                          report[key]?.length > 0 && (
+                            <div key={key} className="rounded-xl bg-[#F5F3E9] p-4">
+                              <h5 className="text-xs font-bold uppercase tracking-widest text-gray-700 mb-2">
+                                {heading}
+                              </h5>
+                              <ul className="space-y-2 text-xs text-gray-700">
+                                {report[key].map((claim, claimIndex) => (
+                                  <li key={`${key}-${claimIndex}`}>
+                                    <p className="leading-relaxed">{claim.text}</p>
+                                    {claim.source_urls?.map((url) => {
+                                      let hostname = url;
+                                      try {
+                                        hostname = new URL(url).hostname;
+                                      } catch {
+                                        hostname = url;
+                                      }
+                                      return (
+                                        <a
+                                          key={url}
+                                          href={url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                          className="mt-0.5 inline-block text-blue-600 underline underline-offset-2 hover:text-blue-800"
+                                        >
+                                          Source ({hostname})
+                                        </a>
+                                      );
+                                    })}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* All Web Content / Evidence Read */}
                 {report?.source_evidence?.length > 0 && (
                   <section className="mt-6 border-t border-gray-100 pt-5">
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">All web content read</h4>
-                    <div className="space-y-4">{report.source_evidence.map((source) => <article key={`${source.url}-${source.content.slice(0, 20)}`} className="rounded-xl bg-[#F5F3E9] p-4"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">{source.source_type === "search_result" ? "Search result" : "Web page read"}</p><a href={source.url} target="_blank" rel="noreferrer" className="mt-1 block break-all text-sm font-bold text-blue-600 underline underline-offset-2 hover:text-blue-800">{source.url}</a><p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-gray-700">{language === "native" ? source.content : "Source content is available at the link above."}</p></article>)}</div>
+                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
+                      All Web Search Content & Pages Read
+                    </h4>
+                    <div className="space-y-3">
+                      {report.source_evidence.map((source, sIdx) => (
+                        <article
+                          key={`${source.url}-${sIdx}`}
+                          className="rounded-xl bg-[#F5F3E9] p-4"
+                        >
+                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
+                            {source.source_type === "search_result"
+                              ? "Live search result citation"
+                              : "Web page read"}
+                          </p>
+                          <a
+                            href={source.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-1 block break-all text-xs font-bold text-blue-600 underline underline-offset-2 hover:text-blue-800"
+                          >
+                            {source.url}
+                          </a>
+                          <p className="mt-2 text-xs leading-5 text-gray-700">
+                            {source.content}
+                          </p>
+                        </article>
+                      ))}
+                    </div>
                   </section>
                 )}
               </article>
@@ -276,7 +683,6 @@ function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete 
 function LinkShelf({ entries, links, dates, onDeleteEntry, onDeleteLink, onDeleteDate }) {
   return <section className="pt-2"><div className="mb-6"><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">Link Vault</p><h2 className="font-display text-3xl tracking-wide uppercase text-[#1a1a1a] mt-1">SAVED RESOURCES & DATES</h2><p className="mt-2 font-medium text-gray-600">Keep each reel's sources, follow-up topics and deadlines together.</p></div><section className="mb-6 rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center gap-2 text-[#114b43]"><BookmarkPlus size={17} /><h3 className="text-xs font-bold uppercase tracking-widest">Reel entries</h3></div>{entries.length === 0 ? <p className="text-sm text-gray-500">Use Add to Link Vault on a reel to save its links and related topics.</p> : <div className="grid gap-4 md:grid-cols-2">{entries.map((entry) => <article key={entry.id} className="rounded-xl bg-[#F5F3E9] p-4"><div className="flex items-start justify-between gap-3"><h4 className="text-sm font-bold text-gray-800">{entry.title}</h4><button type="button" onClick={() => onDeleteEntry(entry.id)} className="shrink-0 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500">Remove</button></div>{entry.links?.length > 0 && <div className="mt-3 space-y-1">{entry.links.map((link) => <a key={`${link.name}-${link.url}`} href={sourceHref(link.url)} target="_blank" rel="noreferrer" className="block truncate text-sm text-blue-600 underline underline-offset-2">{link.name}</a>)}</div>}{entry.topics?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{entry.topics.map((topic) => <a key={topic} href={`https://www.google.com/search?q=${encodeURIComponent(topic)}`} target="_blank" rel="noreferrer" className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#114b43]">{topic}</a>)}</div>}</article>)}</div>}</section><div className="grid gap-6 lg:grid-cols-2"><section className="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center gap-2 text-[#114b43]"><Link2 size={17} /><h3 className="text-xs font-bold uppercase tracking-widest">Individual links</h3></div>{links.length === 0 ? <p className="text-sm text-gray-500">Save an individual source from a reel.</p> : <div className="space-y-3">{links.map((link) => <div key={link.id} className="flex items-start justify-between gap-3 rounded-xl bg-[#F5F3E9] p-3"><div className="min-w-0"><p className="text-sm font-bold text-gray-800">{link.label}</p><a href={link.url} target="_blank" rel="noreferrer" className="block truncate text-sm text-blue-600 underline underline-offset-2">{link.url}</a></div><button type="button" onClick={() => onDeleteLink(link.id)} className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500">Remove</button></div>)}</div>}</section><section className="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center gap-2 text-[#114b43]"><CalendarDays size={17} /><h3 className="text-xs font-bold uppercase tracking-widest">Important dates</h3></div>{dates.length === 0 ? <p className="text-sm text-gray-500">Save a detected or manual date from a Vault reel.</p> : <div className="space-y-3">{dates.map((item) => <div key={item.id} className="flex items-start justify-between gap-3 rounded-xl bg-[#F5F3E9] p-3"><div><p className="text-sm font-bold text-gray-800">{item.label}</p><p className="mt-1 text-sm text-[#114b43]">{formatDate(`${item.event_date}T00:00:00`)}</p></div><button type="button" onClick={() => onDeleteDate(item.id)} className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500">Remove</button></div>)}</div>}</section></div></section>;
 }
-
 
 const getPrimaryDeadline = (reel) => {
   const dates = reel.analysis?.details?.dates || [];
@@ -303,10 +709,8 @@ const matchesDateFilter = (deadlineDate, filter) => {
   if (filter === 'Upcoming') return d >= now;
   
   if (filter === 'This Week') {
-    // Get the start of the current week (Sunday)
     const startOfWeek = new Date(now);
     startOfWeek.setDate(now.getDate() - now.getDay());
-    // Get the end of the current week (Saturday)
     const endOfWeek = new Date(now);
     endOfWeek.setDate(now.getDate() + (6 - now.getDay()));
     return d >= startOfWeek && d <= endOfWeek;
@@ -324,15 +728,12 @@ const calculateMatchScore = (reel, profilePrefs) => {
   const matchReasons = [];
   let isEligible = true;
   
-  // Use research classification category if available, fallback to tags
-  // Actually, we must use tags because Vault doesn't guarantee research is done/available synchronously.
   const tags = (reel.analysis?.tags || []).map(t => t.toLowerCase());
   
   if (profilePrefs.interestedIn?.length > 0) {
     totalWeight += 50;
     const matchedTypes = profilePrefs.interestedIn.filter(type => {
       const t = type.toLowerCase();
-      // specifically handle hackathon vs competition mapping if they overlap in tags, but the user says "Do not allow an unrelated domain/mode match to override an opportunity-type mismatch."
       return tags.includes(t) || tags.some(tag => t.includes(tag) || tag.includes(t));
     });
     
@@ -340,7 +741,7 @@ const calculateMatchScore = (reel, profilePrefs) => {
       score += 50;
       matchReasons.push(...matchedTypes);
     } else {
-      isEligible = false; // Primary eligibility filter failed!
+      isEligible = false;
     }
   }
 
@@ -368,75 +769,91 @@ const calculateMatchScore = (reel, profilePrefs) => {
 
 export default function Vault() {
   const navigate = useNavigate();
+  const { session } = useAuth();
+  const { profile } = useProfile();
   const { language } = useLanguage();
   const [reels, setReels] = useState([]);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [selectedDay, setSelectedDay] = useState("");
-  const [loadError, setLoadError] = useState("");
   const [researchByReel, setResearchByReel] = useState({});
   const [savedLinks, setSavedLinks] = useState([]);
   const [savedDates, setSavedDates] = useState([]);
   const [linkVaultEntries, setLinkVaultEntries] = useState([]);
-  const [openId, setOpenId] = useState(null);
+  const [selectedDay, setSelectedDay] = useState("");
   const [activeTab, setActiveTab] = useState("vault");
-  const { profile } = useProfile();
-
+  const [searchQuery, setSearchQuery] = useState("");
+  const [openId, setOpenId] = useState(null);
+  const [loadError, setLoadError] = useState("");
+  const [isForYouActive, setIsForYouActive] = useState(false);
   const [filterType, setFilterType] = useState('All');
   const [filterDate, setFilterDate] = useState('All');
-  const [isForYouActive, setIsForYouActive] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const [reelsData, links, dates, entries] = await Promise.all([
+          api.listReels(),
+          api.listSavedLinks().catch(() => []),
+          api.listSavedDates().catch(() => []),
+          api.listLinkVault().catch(() => []),
+        ]);
+        if (cancelled) return;
+        setReels(reelsData);
+        setSavedLinks(links);
+        setSavedDates(dates);
+        setLinkVaultEntries(entries);
+      } catch (error) {
+        if (!cancelled)
+          setLoadError(
+            error instanceof ApiError
+              ? error.message
+              : "Unable to load your vault.",
+          );
+      }
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [session?.access_token]);
 
-  const loadReels = async () => {
-    try {
-      const saved = await api.listReels();
-      setReels(saved);
-      const [research, links, dates, entries] = await Promise.all([
-        Promise.all(
-        saved.map(async (reel) => {
+  useEffect(() => {
+    let cancelled = false;
+    const loadResearch = async () => {
+      const records = await Promise.all(
+        reels.map(async (reel) => {
           try {
-            return [reel.reel_id, await api.getResearch(reel.reel_id)];
+            const data = await api.getResearch(reel.reel_id);
+            return [reel.reel_id, data];
           } catch {
             return null;
           }
-        })),
-        api.listSavedLinks().catch(() => []),
-        api.listSavedDates().catch(() => []),
-        api.listLinkVault().catch(() => []),
-      ]);
-      setResearchByReel(Object.fromEntries(research.filter(Boolean)));
-      setSavedLinks(links);
-      setSavedDates(dates);
-      setLinkVaultEntries(entries);
-    } catch (error) {
-      setLoadError(
-        error instanceof ApiError
-          ? error.message
-          : "Unable to load your vault.",
+        }),
       );
-      setReels([]);
-    }
-  };
+      if (!cancelled)
+        setResearchByReel(Object.fromEntries(records.filter(Boolean)));
+    };
+    if (reels.length) loadResearch();
+    return () => {
+      cancelled = true;
+    };
+  }, [reels]);
+
+  const activeIds = reels
+    .map((r) => r.reel_id)
+    .filter((id) => {
+      const s = researchByReel[id]?.status;
+      return s && ACTIVE_STATUSES.has(s);
+    });
 
   useEffect(() => {
-    const request = window.setTimeout(() => {
-      void loadReels();
-    }, 0);
-    return () => window.clearTimeout(request);
-  }, []);
-
-  const activeIds = Object.entries(researchByReel)
-    .filter(([, result]) => ACTIVE_STATUSES.has(result.status))
-    .map(([reelId]) => reelId)
-    .join(",");
-
-  useEffect(() => {
-    if (!activeIds) return undefined;
+    if (!activeIds.length) return;
     let cancelled = false;
     const refresh = async () => {
       const records = await Promise.all(
-        activeIds.split(",").map(async (reelId) => {
+        activeIds.map(async (id) => {
           try {
-            return [reelId, await api.getResearch(reelId)];
+            const data = await api.getResearch(id);
+            return [id, data];
           } catch {
             return null;
           }
@@ -465,7 +882,6 @@ export default function Vault() {
     const matchesDay = !selectedDay || savedDates.some((item) => item.reel_id === reel.reel_id && dateKey(`${item.event_date}T00:00:00`) === selectedDay);
     const tags = reel.analysis?.tags || [];
     
-    // Type filter uses tags
     const matchesType = filterType === 'All' || tags.some(t => filterType.toLowerCase().includes(t.toLowerCase()) || t.toLowerCase().includes(filterType.toLowerCase()));
     
     const deadline = getPrimaryDeadline(reel);
@@ -506,13 +922,30 @@ export default function Vault() {
     }
   };
 
-  const handleResearch = async (reel) => {
+  const handleResearch = async (reel, topicToVerify = null) => {
     setLoadError("");
     try {
+      const topics = [
+        ...new Set([
+          ...(reel.analysis?.tags || []),
+          ...(reel.analysis?.details?.competitions || []),
+          ...(reel.analysis?.details?.people || []),
+          ...(reel.analysis?.details?.books || []),
+        ]),
+      ];
+      if (topicToVerify && typeof topicToVerify === "string" && topicToVerify.trim()) {
+        const cleanTopic = topicToVerify.trim();
+        if (!topics.includes(cleanTopic)) {
+          topics.unshift(cleanTopic);
+        }
+      }
       const result = await api.startResearch(reel.reel_id, {
         transcript: reel.transcript || "",
         caption: reel.caption || "",
         title: reel.title || "",
+        summary: reel.analysis?.summary || "",
+        summary_points: reel.analysis?.summary_points || [],
+        topics,
       });
       setResearchByReel((current) => ({ ...current, [reel.reel_id]: result }));
     } catch (error) {
@@ -550,7 +983,6 @@ export default function Vault() {
     setActiveTab("vault");
     setSearchQuery("");
     setSelectedDay("");
-    // Give react time to switch tab and render before scrolling
     setTimeout(() => {
       const element = document.getElementById(`vault-reel-${reelId}`);
       if (element) {
@@ -671,10 +1103,6 @@ export default function Vault() {
               <option value="Scholarship">Scholarship</option>
               <option value="Offer">Offer</option>
             </select>
-
-
-            
-            {/* Note: Mode filter excluded because backend doesn't provide structured 'mode' metadata yet */}
 
             <select
               value={filterDate}

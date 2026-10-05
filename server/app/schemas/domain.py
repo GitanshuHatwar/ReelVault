@@ -90,9 +90,11 @@ class VerdictDraft(BaseModel):
     official_urls: list[str] = Field(default_factory=list)
     supporting_urls: list[str] = Field(default_factory=list)
     field_checks: list[FieldCheck] = Field(default_factory=list)
+    claim_checks: list[ClaimCheck] = Field(default_factory=list)
     official_deadline: date | None = None
     official_deadline_quote: str | None = None
     scam_signals: list[str] = Field(default_factory=list)
+    sources_verified: bool = False
     summary: str
 
 

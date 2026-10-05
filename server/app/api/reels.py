@@ -134,7 +134,7 @@ def start_deep_cook(
     body: DeepCookIn = Body(default_factory=DeepCookIn),
     user: AuthUser = Depends(current_user),
 ):
-    """Give the entire stored transcript/caption to Gemini for verification."""
+    """Verify reel correctness, summary, and topics via Gemini web search."""
     if not get_settings().gemini_api_key:
         raise UpstreamFailed("Gemini API key is not configured on the server.")
 
@@ -145,23 +145,34 @@ def start_deep_cook(
     current = repo.get_latest_deep_cook(user.id, reel_id)
     if current and current["status"] not in {"done", "not_opportunity", "failed"}:
         return current
-    if repo.count_deep_cooks_since_24h(user.id) >= 10:
+    if repo.count_deep_cooks_since_24h(user.id) >= 20:
         raise RateLimited("Daily limit for research requests reached.")
 
     post = _source_post(reel)
     payload = body
+    raw = post.get("raw") if isinstance(post.get("raw"), dict) else {}
+    analysis = raw.get("reel_analysis") or {}
+
     transcript = (payload.transcript or post.get("transcript") or "").strip() or None
     caption = (payload.caption or post.get("caption") or "").strip() or None
-    if not (transcript or caption):
-        raise NoContent("This reel has no transcript or caption to send to Gemini.")
+    title = (payload.title or reel_title(post) or "").strip() or None
+    summary = (payload.summary or analysis.get("summary") or "").strip() or None
+    summary_points = payload.summary_points or analysis.get("summary_points") or []
+    topics = payload.topics or analysis.get("tags") or []
+
+    if not (transcript or caption or summary):
+        raise NoContent("This reel has no transcript, caption, or summary to verify.")
 
     deep_cook = repo.create_deep_cook(user.id, reel_id)
     background_tasks.add_task(
         run_deep_cook,
         deep_cook["id"],
-        transcript,
-        caption,
-        (payload.title or "").strip() or None,
+        transcript=transcript,
+        caption=caption,
+        title=title,
+        summary=summary,
+        summary_points=summary_points,
+        topics=topics,
     )
     return deep_cook
 

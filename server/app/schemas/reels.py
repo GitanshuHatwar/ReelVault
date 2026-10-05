@@ -62,6 +62,7 @@ class DeepCookIn(BaseModel):
     title: str | None = None
     summary: str | None = None
     summary_points: list[str] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
 
 
 class DeepCookOut(BaseModel):

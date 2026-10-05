@@ -4,7 +4,7 @@ from google.api_core.exceptions import ResourceExhausted
 
 from app.db import repo
 from app.errors import PipelineError
-from app.schemas.domain import FetchedPost, Verdict, VerificationResult
+from app.schemas.domain import Extracted, FetchedPost, Verdict, VerificationResult
 from app.services.deep_cook.classify import classify
 from app.services.deep_cook.extract import extract
 from app.services.deep_cook.ground import ground
@@ -33,8 +33,11 @@ def run_deep_cook(
     transcript: str | None = None,
     caption: str | None = None,
     title: str | None = None,
+    summary: str | None = None,
+    summary_points: list[str] | None = None,
+    topics: list[str] | None = None,
 ) -> None:
-    """Background entrypoint. Never raises. Idempotent: only runs a 'queued' job."""
+    """Background entrypoint using Gemini API for classification, extraction, verification and research."""
     dc = repo.get_deep_cook(deep_cook_id)
     if dc is None or dc["status"] != "queued":
         return
@@ -52,9 +55,9 @@ def run_deep_cook(
             transcript=(transcript or sp.get("transcript") or "").strip() or None,
             caption=(caption or sp.get("caption") or "").strip() or None,
             posted_at=sp.get("posted_at") or None,
-            raw={"saved_title": title} if title else {},
+            raw={"saved_title": title, "summary": summary, "summary_points": summary_points, "topics": topics} if title or summary or summary_points or topics else {},
         )
-        if not (post.transcript or post.caption):
+        if not (post.transcript or post.caption or summary):
             raise PipelineError("empty_content")
 
         _set(deep_cook_id, "classifying")
@@ -65,9 +68,6 @@ def run_deep_cook(
 
         _set(deep_cook_id, "extracting")
         extracted = extract(post)
-        # Defensive guard for third-party structured-output adapters. `extract`
-        # normally returns an Extracted instance, but never let a malformed
-        # model response turn into an unhandled AttributeError in `ground`.
         if not isinstance(extracted, Extracted):
             log.warning("deep_cook=%s received invalid extraction result", deep_cook_id)
             extracted = Extracted()
@@ -85,12 +85,20 @@ def run_deep_cook(
                 official_deadline=None,
                 scam_signals=[],
                 guard_notes=["skipped: no title or organizer"],
+                sources_verified=False,
+                claim_checks=[],
             )
             return _set(deep_cook_id, "done", verification=skipped.model_dump(mode="json"), tool_calls=0)
 
         _set(deep_cook_id, "verifying")
         run = ToolRun(organizer=ex.organizer.value or "")
-        ver, stats = verify(ex, run)
+        ver, stats = verify(
+            ex,
+            run,
+            summary=summary,
+            summary_points=summary_points,
+            topics=topics,
+        )
         repo.update_deep_cook(deep_cook_id, verification=ver.model_dump(mode="json"), tool_calls=stats.calls)
 
         if ver.verdict in RESEARCH_VERDICTS:
