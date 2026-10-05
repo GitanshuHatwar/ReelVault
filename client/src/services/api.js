@@ -219,4 +219,19 @@ export const api = {
     }
     return request(`/v1/reels/saved-dates/${dateId}`, { method: 'DELETE' });
   },
+
+  listLinkVault: async () => {
+    if (isMockSession()) return mockStore.getLinkVaultEntries();
+    return request('/v1/reels/link-vault');
+  },
+
+  saveLinkVault: async (reelId, body) => {
+    if (isMockSession()) return mockStore.saveLinkVaultEntry(reelId, body);
+    return request(`/v1/reels/${reelId}/link-vault`, { method: 'POST', body });
+  },
+
+  deleteLinkVault: async (entryId) => {
+    if (isMockSession()) return mockStore.deleteLinkVaultEntry(entryId);
+    return request(`/v1/reels/link-vault/${entryId}`, { method: 'DELETE' });
+  },
 };

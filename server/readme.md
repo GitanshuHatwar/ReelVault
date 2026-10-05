@@ -17,7 +17,7 @@ Create `server/.env` from `.env.example`. Four services:
 
 ### One-time Supabase setup
 
-1. New project → **SQL Editor** → run `supabase/migrations/0001_init.sql`.
+1. New project → **SQL Editor** → run every file in `supabase/migrations/`, in numeric order (`0001_init.sql`, `0002_productivity_shelf.sql`, then `0003_link_vault_entries.sql`).
 2. **Authentication → Providers → Email** ON.
 3. For local testing, turn **email confirmation OFF** so signup returns tokens immediately.
 
