@@ -2,6 +2,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Home, Bookmark, User, Play, CalendarDays, Sparkles } from 'lucide-react';
 import { useLanguage } from '../../preferences/LanguageContext';
 import { useAuth } from '../../auth/useAuth';
+import NotificationsBell from './NotificationsBell';
 
 export default function TopNav({ onOpenCalendar }) {
   const location = useLocation();
@@ -73,6 +74,11 @@ export default function TopNav({ onOpenCalendar }) {
               </Link>
             );
           })}
+          
+          <div className="mx-2 h-6 w-px bg-gray-200"></div>
+          
+          <NotificationsBell />
+          
           <label className="ml-2 flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs font-bold text-gray-600">
             <span>Content</span>
             <select value={language} onChange={(event) => setLanguage(event.target.value)} aria-label="Content language preference" className="cursor-pointer bg-transparent text-[#114b43] outline-none">
@@ -87,6 +93,7 @@ export default function TopNav({ onOpenCalendar }) {
               Mock
             </span>
           )}
+          <NotificationsBell />
           <label className="flex items-center rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-[10px] font-bold text-[#114b43]">
             <select value={language} onChange={(event) => setLanguage(event.target.value)} aria-label="Content language preference" className="max-w-20 cursor-pointer bg-transparent outline-none">
               <option value="english">English</option>
