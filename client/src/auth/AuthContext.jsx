@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
-import { api, clearSession, getSession, setSession } from '../services/api';
+import { api, clearSession, getSession, setSession, isMockSession } from '../services/api';
 import { AuthContext } from './context';
 
 export function AuthProvider({ children }) {
   const [session, setSessionState] = useState(getSession);
   const [loading, setLoading] = useState(() => Boolean(getSession()?.access_token));
   const accessToken = session?.access_token;
+  const isMock = isMockSession(session);
 
   useEffect(() => {
     let active = true;
     if (!accessToken) return () => { active = false; };
+
+    // In mock/offline prototype mode, preserve mock session without needing backend
+    if (session?.is_mock || accessToken === 'mock_static_admin_token') {
+      setLoading(false);
+      return () => { active = false; };
+    }
+
     api.me()
       .then((user) => active && setSessionState((current) => ({ ...current, user })))
       .catch(() => {
@@ -18,11 +26,12 @@ export function AuthProvider({ children }) {
       })
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [accessToken]);
+  }, [accessToken, session?.is_mock]);
 
   const value = useMemo(() => ({
     session,
     user: session?.user || null,
+    isMock,
     loading,
     async signIn(email, password) {
       const next = await api.signIn(email, password);
@@ -46,7 +55,7 @@ export function AuthProvider({ children }) {
         setSessionState(null);
       }
     },
-  }), [loading, session]);
+  }), [loading, session, isMock]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
