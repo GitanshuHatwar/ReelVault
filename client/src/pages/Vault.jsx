@@ -17,6 +17,8 @@ import {
   Trash2,
 } from "lucide-react";
 import { api, ApiError } from "../services/api";
+import { useAuth } from "../auth/useAuth";
+import { useProfile } from "../auth/useProfile";
 import SavedCalendar, { dateKey } from "../components/calendar/SavedCalendar";
 import { useLanguage } from "../preferences/LanguageContext";
 
@@ -135,7 +137,7 @@ function ReelAnalysisPanel({ reel, onSaveLink, onSaveDate, onSaveToLinkVault, sa
     </section>
     <section className="mb-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43]">Reel resources</p><p className="mt-1 text-sm text-gray-500">Save links, dates and search topics separately from the summary.</p></div><button type="button" onClick={() => onSaveToLinkVault(reel, sources, topics)} disabled={inLinkVault} className="inline-flex items-center gap-1.5 rounded-lg bg-[#114b43] px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white disabled:bg-gray-300"><BookmarkPlus size={14} />{inLinkVault ? "In Link Vault" : "Add to Link Vault"}</button></div>
-      <div className="mt-4 grid gap-5 lg:grid-cols-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Links & sources</p>{sources.length === 0 ? <p className="text-sm text-gray-400">No links were found in this reel.</p> : <div className="flex flex-wrap gap-2">{sources.map((source, index) => { const href = sourceHref(source.url || (/^[\w.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(source.name) ? source.name : null)); const saved = savedLinks.some((item) => item.reel_id === reel.reel_id && item.url === href); return <span key={`${source.name}-${index}`} className="inline-flex items-center gap-2 rounded-lg bg-[#F5F3E9] px-2.5 py-1.5 text-sm font-medium text-gray-700">{href ? <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-800">{source.name}</a> : source.name}<button type="button" disabled={!href || saved} onClick={() => onSaveLink(reel, source)} className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:text-gray-400"><BookmarkPlus size={12} />{saved ? "Saved" : "Save"}</button></span>; })}</div>}</div><div><div className="flex items-center justify-between mb-2"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Dates</p><Link to="/profile#calendar-integration" title="Configure Google Calendar" aria-label="Configure Google Calendar" className="text-gray-400 hover:text-[#114b43]"><Eye size={14} /></Link></div>{dates.length === 0 ? <p className="text-sm text-gray-400">No dates were found in this reel.</p> : <ul className="space-y-2 text-sm text-gray-700">{dates.map((value) => { const eventDate = toInputDate(value); const saved = eventDate && savedDates.some((item) => item.reel_id === reel.reel_id && item.event_date === eventDate && item.label === value); return <li key={value} className="flex flex-wrap items-center gap-2"><span className="text-[#114b43]">•</span><span>{value}</span><button type="button" disabled={(!eventDate || saved) && localStorage.getItem('reelvault_pref_export') !== 'google'} onClick={() => handleCalendarAction(reel, { label: value, event_date: eventDate })} className="inline-flex items-center gap-1 rounded-md border border-[#114b43]/20 px-2 py-1 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:border-gray-100 disabled:text-gray-400"><CalendarPlus size={12} />{saved ? "On calendar" : "Add to calendar"}</button></li>; })}</ul>}</div></div>
+      <div className="mt-4 grid gap-5 lg:grid-cols-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Links & sources</p>{sources.length === 0 ? <p className="text-sm text-gray-400">No links were found in this reel.</p> : <div className="flex flex-wrap gap-2">{sources.map((source, index) => { const href = sourceHref(source.url || (/^[\w.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(source.name) ? source.name : null)); const saved = savedLinks.some((item) => item.reel_id === reel.reel_id && item.url === href); return <span key={`${source.name}-${index}`} className="inline-flex items-center gap-2 rounded-lg bg-[#F5F3E9] px-2.5 py-1.5 text-sm font-medium text-gray-700">{href ? <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-800">{source.name}</a> : source.name}<button type="button" disabled={!href || saved} onClick={() => onSaveLink(reel, source)} className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:text-gray-400"><BookmarkPlus size={12} />{saved ? "Saved" : "Save"}</button></span>; })}</div>}</div><div><div className="flex items-center justify-between mb-2"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Dates</p><Link to="/profile#calendar-integration" title="Configure Google Calendar" aria-label="Configure Google Calendar" className="text-gray-400 hover:text-[#114b43]"><Eye size={14} /></Link></div>{dates.length === 0 ? <p className="text-sm text-gray-400">No dates were found in this reel.</p> : <ul className="space-y-2 text-sm text-gray-700">{dates.map((value) => <li key={value} className="flex items-center gap-2"><span className="text-[#114b43]">•</span><span>{value}</span></li>)}</ul>}</div></div>
       {topics.length > 0 && <div className="mt-5 border-t border-gray-100 pt-4"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Topics to explore</p><div className="flex flex-wrap gap-2">{topics.map((topic) => <a key={topic} href={`https://www.google.com/search?q=${encodeURIComponent(topic)}`} target="_blank" rel="noreferrer" className="rounded-full bg-[#F5F3E9] px-3 py-1.5 text-xs font-bold text-[#114b43] hover:bg-[#e8e5d6]">Search {topic}</a>)}</div></div>}
       <div className="mt-5 border-t border-gray-100 pt-4"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Add an important date</p><div className="flex flex-wrap items-center gap-2"><input type="date" value={manualDate} onChange={(event) => setManualDate(event.target.value)} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700" /><button type="button" disabled={!manualDate} onClick={() => { handleCalendarAction(reel, { label: `Important date for ${reel.title}`, event_date: manualDate }); setManualDate(""); }} className="inline-flex items-center gap-1 rounded-lg border border-[#114b43] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:border-gray-200 disabled:text-gray-400"><CalendarPlus size={12} /> Add to calendar</button></div></div>
     </section>
@@ -275,6 +277,95 @@ function LinkShelf({ entries, links, dates, onDeleteEntry, onDeleteLink, onDelet
   return <section className="pt-2"><div className="mb-6"><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">Link Vault</p><h2 className="font-display text-3xl tracking-wide uppercase text-[#1a1a1a] mt-1">SAVED RESOURCES & DATES</h2><p className="mt-2 font-medium text-gray-600">Keep each reel's sources, follow-up topics and deadlines together.</p></div><section className="mb-6 rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center gap-2 text-[#114b43]"><BookmarkPlus size={17} /><h3 className="text-xs font-bold uppercase tracking-widest">Reel entries</h3></div>{entries.length === 0 ? <p className="text-sm text-gray-500">Use Add to Link Vault on a reel to save its links and related topics.</p> : <div className="grid gap-4 md:grid-cols-2">{entries.map((entry) => <article key={entry.id} className="rounded-xl bg-[#F5F3E9] p-4"><div className="flex items-start justify-between gap-3"><h4 className="text-sm font-bold text-gray-800">{entry.title}</h4><button type="button" onClick={() => onDeleteEntry(entry.id)} className="shrink-0 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500">Remove</button></div>{entry.links?.length > 0 && <div className="mt-3 space-y-1">{entry.links.map((link) => <a key={`${link.name}-${link.url}`} href={sourceHref(link.url)} target="_blank" rel="noreferrer" className="block truncate text-sm text-blue-600 underline underline-offset-2">{link.name}</a>)}</div>}{entry.topics?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{entry.topics.map((topic) => <a key={topic} href={`https://www.google.com/search?q=${encodeURIComponent(topic)}`} target="_blank" rel="noreferrer" className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#114b43]">{topic}</a>)}</div>}</article>)}</div>}</section><div className="grid gap-6 lg:grid-cols-2"><section className="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center gap-2 text-[#114b43]"><Link2 size={17} /><h3 className="text-xs font-bold uppercase tracking-widest">Individual links</h3></div>{links.length === 0 ? <p className="text-sm text-gray-500">Save an individual source from a reel.</p> : <div className="space-y-3">{links.map((link) => <div key={link.id} className="flex items-start justify-between gap-3 rounded-xl bg-[#F5F3E9] p-3"><div className="min-w-0"><p className="text-sm font-bold text-gray-800">{link.label}</p><a href={link.url} target="_blank" rel="noreferrer" className="block truncate text-sm text-blue-600 underline underline-offset-2">{link.url}</a></div><button type="button" onClick={() => onDeleteLink(link.id)} className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500">Remove</button></div>)}</div>}</section><section className="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center gap-2 text-[#114b43]"><CalendarDays size={17} /><h3 className="text-xs font-bold uppercase tracking-widest">Important dates</h3></div>{dates.length === 0 ? <p className="text-sm text-gray-500">Save a detected or manual date from a Vault reel.</p> : <div className="space-y-3">{dates.map((item) => <div key={item.id} className="flex items-start justify-between gap-3 rounded-xl bg-[#F5F3E9] p-3"><div><p className="text-sm font-bold text-gray-800">{item.label}</p><p className="mt-1 text-sm text-[#114b43]">{formatDate(`${item.event_date}T00:00:00`)}</p></div><button type="button" onClick={() => onDeleteDate(item.id)} className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500">Remove</button></div>)}</div>}</section></div></section>;
 }
 
+
+const getPrimaryDeadline = (reel) => {
+  const dates = reel.analysis?.details?.dates || [];
+  if (!dates.length) return null;
+  const now = new Date();
+  const validDates = dates.map(d => new Date(d)).filter(d => !Number.isNaN(d.getTime()));
+  if (!validDates.length) return null;
+  validDates.sort((a, b) => a - b);
+  const futureDates = validDates.filter(d => d >= now);
+  return futureDates.length > 0 ? futureDates[0] : validDates[validDates.length - 1];
+};
+
+const matchesDateFilter = (deadlineDate, filter) => {
+  if (filter === 'All') return true;
+  if (!deadlineDate) return false;
+  
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+  
+  const d = new Date(deadlineDate);
+  d.setHours(0, 0, 0, 0);
+  
+  if (filter === 'Expired') return d < now;
+  if (filter === 'Upcoming') return d >= now;
+  
+  if (filter === 'This Week') {
+    // Get the start of the current week (Sunday)
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() - now.getDay());
+    // Get the end of the current week (Saturday)
+    const endOfWeek = new Date(now);
+    endOfWeek.setDate(now.getDate() + (6 - now.getDay()));
+    return d >= startOfWeek && d <= endOfWeek;
+  }
+  if (filter === 'This Month') {
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }
+  return true;
+};
+
+const calculateMatchScore = (reel, profilePrefs) => {
+  if (!profilePrefs) return { score: 0, eligible: true, reasons: [] };
+  let score = 0;
+  let totalWeight = 0;
+  const matchReasons = [];
+  let isEligible = true;
+  
+  // Use research classification category if available, fallback to tags
+  // Actually, we must use tags because Vault doesn't guarantee research is done/available synchronously.
+  const tags = (reel.analysis?.tags || []).map(t => t.toLowerCase());
+  
+  if (profilePrefs.interestedIn?.length > 0) {
+    totalWeight += 50;
+    const matchedTypes = profilePrefs.interestedIn.filter(type => {
+      const t = type.toLowerCase();
+      // specifically handle hackathon vs competition mapping if they overlap in tags, but the user says "Do not allow an unrelated domain/mode match to override an opportunity-type mismatch."
+      return tags.includes(t) || tags.some(tag => t.includes(tag) || tag.includes(t));
+    });
+    
+    if (matchedTypes.length > 0) {
+      score += 50;
+      matchReasons.push(...matchedTypes);
+    } else {
+      isEligible = false; // Primary eligibility filter failed!
+    }
+  }
+
+  if (profilePrefs.interestDomains?.length > 0) {
+    totalWeight += 50;
+    const matchedDomains = profilePrefs.interestDomains.filter(domain => {
+      const d = domain.toLowerCase();
+      return tags.includes(d) || tags.some(tag => d.includes(tag) || tag.includes(d));
+    });
+    
+    if (matchedDomains.length > 0) {
+      score += 50;
+      matchReasons.push(...matchedDomains);
+    }
+  }
+  
+  if (totalWeight === 0) return { score: 0, eligible: true, reasons: [] };
+  
+  return {
+    score: Math.round((score / totalWeight) * 100),
+    eligible: isEligible,
+    reasons: [...new Set(matchReasons)]
+  };
+};
+
 export default function Vault() {
   const navigate = useNavigate();
   const { language } = useLanguage();
@@ -288,7 +379,12 @@ export default function Vault() {
   const [linkVaultEntries, setLinkVaultEntries] = useState([]);
   const [openId, setOpenId] = useState(null);
   const [activeTab, setActiveTab] = useState("vault");
-  const [category, setCategory] = useState("all");
+  const { profile } = useProfile();
+
+  const [filterType, setFilterType] = useState('All');
+  const [filterDate, setFilterDate] = useState('All');
+  const [isForYouActive, setIsForYouActive] = useState(false);
+
 
   const loadReels = async () => {
     try {
@@ -368,9 +464,29 @@ export default function Vault() {
       (reel.author || "").toLowerCase().includes(q);
     const matchesDay = !selectedDay || savedDates.some((item) => item.reel_id === reel.reel_id && dateKey(`${item.event_date}T00:00:00`) === selectedDay);
     const tags = reel.analysis?.tags || [];
-    const matchesCategory = category === "all" || tags.includes(category) || `${reel.analysis?.summary || ""} ${reel.title}`.toLowerCase().includes(category);
-    return matchesSearch && matchesDay && matchesCategory;
+    
+    // Type filter uses tags
+    const matchesType = filterType === 'All' || tags.some(t => filterType.toLowerCase().includes(t.toLowerCase()) || t.toLowerCase().includes(filterType.toLowerCase()));
+    
+    const deadline = getPrimaryDeadline(reel);
+    const matchesDate = matchesDateFilter(deadline, filterDate);
+
+    return matchesSearch && matchesDay && matchesType && matchesDate;
   });
+
+  let displayReels = [...filtered];
+  const reelScores = {};
+  if (isForYouActive && profile) {
+    displayReels.forEach(reel => {
+      reelScores[reel.reel_id] = calculateMatchScore(reel, profile);
+    });
+    displayReels = displayReels.filter(reel => reelScores[reel.reel_id].eligible && reelScores[reel.reel_id].score > 0);
+    displayReels.sort((a, b) => {
+      const scoreA = reelScores[a.reel_id]?.score || 0;
+      const scoreB = reelScores[b.reel_id]?.score || 0;
+      return scoreB - scoreA;
+    });
+  }
 
   const handleDelete = async (reelId) => {
     try {
@@ -528,7 +644,59 @@ export default function Vault() {
               className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:border-[#114b43] focus:ring-1 focus:ring-[#114b43]"
             />
           </div>
-          <div className="flex flex-wrap gap-2">{[["all", "All"], ["internship", "Internships"], ["competition", "Competitions"], ["offer", "Offers"], ["skill", "Skills"]].map(([value, label]) => <button key={value} type="button" onClick={() => setCategory(value)} className={`rounded-full px-3 py-1.5 text-xs font-bold transition-colors ${category === value ? "bg-[#114b43] text-white" : "bg-[#F5F3E9] text-gray-600 hover:text-[#114b43]"}`}>{label}</button>)}</div>
+          <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-3 mt-3">
+            <button
+              type="button"
+              onClick={() => setIsForYouActive(!isForYouActive)}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                isForYouActive ? 'bg-[#d4f954] text-[#114b43] border border-[#114b43]/20 shadow-sm' : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              <Sparkles size={14} className={isForYouActive ? 'text-[#114b43]' : 'text-gray-400'} />
+              For You
+            </button>
+            
+            <div className="h-4 w-px bg-gray-200 mx-1"></div>
+
+            <select
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-600 focus:outline-none focus:border-[#114b43]"
+            >
+              <option value="All">Type: All</option>
+              <option value="Hackathon">Hackathon</option>
+              <option value="Internship">Internship</option>
+              <option value="Competition">Competition</option>
+              <option value="Job">Job</option>
+              <option value="Scholarship">Scholarship</option>
+              <option value="Offer">Offer</option>
+            </select>
+
+
+            
+            {/* Note: Mode filter excluded because backend doesn't provide structured 'mode' metadata yet */}
+
+            <select
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="px-3 py-1.5 bg-white border border-gray-200 rounded-full text-xs font-bold text-gray-600 focus:outline-none focus:border-[#114b43]"
+            >
+              <option value="All">Date: All</option>
+              <option value="Upcoming">Upcoming</option>
+              <option value="This Week">This Week</option>
+              <option value="This Month">This Month</option>
+              <option value="Expired">Expired</option>
+            </select>
+          </div>
+          
+          {isForYouActive && (!profile || (!profile.interestedIn?.length && !profile.interestDomains?.length)) && (
+            <div className="mt-3 p-4 rounded-xl border border-amber-200 bg-amber-50 flex items-center justify-between">
+              <p className="text-sm font-medium text-amber-900">Set up your profile to personalize your Vault.</p>
+              <Link to="/profile" className="px-4 py-2 bg-white rounded-lg border border-amber-200 text-xs font-bold text-amber-900 shadow-sm hover:bg-amber-100">
+                Set Up Profile
+              </Link>
+            </div>
+          )}
           </div>
           {selectedDay && (
             <button
@@ -539,13 +707,13 @@ export default function Vault() {
               Clear date filter
             </button>
           )}
-          {filtered.length === 0 ? (
+          {displayReels.length === 0 ? (
             <p className="text-gray-500 font-medium">
               No reels match that search.
             </p>
           ) : (
             <div className="space-y-4">
-              {filtered.map((reel) => {
+              {displayReels.map((reel) => {
                 const body = displayContent(reel, language);
                 const chunks = transcriptChunks(body);
                 const expanded = openId === reel.reel_id;
@@ -558,9 +726,23 @@ export default function Vault() {
                   >
                     <div className="flex items-start justify-between gap-4 mb-3">
                       <div>
-                        <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
-                          {reel.platform}
-                          {reel.author ? ` · ${reel.author}` : ""}
+                        <div className="flex flex-wrap items-center gap-3 mb-2">
+                          <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                            {reel.platform}
+                            {reel.author ? ` · ${reel.author}` : ""}
+                          </div>
+                          {isForYouActive && reelScores[reel.reel_id]?.score > 0 && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="bg-[#114b43] text-[#d4f954] px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm">
+                                <Sparkles size={10} /> {reelScores[reel.reel_id].score}% Match
+                              </span>
+                              {reelScores[reel.reel_id].reasons?.length > 0 && (
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest hidden sm:inline">
+                                  Matches: {reelScores[reel.reel_id].reasons.join(" • ")}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         <h3 className="text-[#1a1a1a] font-bold text-xl leading-snug">
                           {reel.title}

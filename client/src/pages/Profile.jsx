@@ -18,9 +18,16 @@ import {
   Shield,
   Activity,
   CheckCircle2,
-  RefreshCw
+  RefreshCw,
+  Edit2,
+  Bell,
+  X,
+  Save,
+  Briefcase,
+  Globe
 } from 'lucide-react';
 import { useAuth } from '../auth/useAuth';
+import { useProfile } from '../auth/useProfile';
 import { api } from '../services/api';
 
 export default function Profile() {
@@ -32,6 +39,61 @@ export default function Profile() {
   const [loadingReels, setLoadingReels] = useState(true);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+
+  // Profile Setup State
+  const { profile, saveProfile, userId } = useProfile();
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState(null);
+
+  const INTERESTED_IN_OPTIONS = ['Hackathons', 'Internships', 'Scholarships', 'Competitions', 'Jobs', 'Offers'];
+  const DOMAIN_OPTIONS = ['AI / Machine Learning', 'Web Development', 'App Development', 'Data Science', 'Cybersecurity', 'Cloud / DevOps', 'UI / UX', 'Open Source', 'Other'];
+  const MODE_OPTIONS = ['Any', 'Remote', 'Hybrid', 'On-site'];
+
+  const handleStartSetup = () => {
+    setEditForm(profile || {
+      fullName: '',
+      username: '',
+      interestedIn: [],
+      interestDomains: [],
+      opportunityMode: 'Any',
+      notifications: {
+        deadlineReminders: true,
+        verificationCompleted: true,
+        importantUpdates: true
+      }
+    });
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = () => {
+    if (!editForm.fullName || !editForm.username) {
+      alert("Full Name and Username are required.");
+      return;
+    }
+    saveProfile(editForm);
+    setIsEditingProfile(false);
+  };
+
+  const handleToggleArray = (field, value) => {
+    setEditForm(prev => {
+      const arr = prev[field] || [];
+      if (arr.includes(value)) {
+        return { ...prev, [field]: arr.filter(i => i !== value) };
+      } else {
+        return { ...prev, [field]: [...arr, value] };
+      }
+    });
+  };
+
+  const handleNotificationToggle = (key) => {
+    setEditForm(prev => ({
+      ...prev,
+      notifications: {
+        ...prev.notifications,
+        [key]: !prev.notifications[key]
+      }
+    }));
+  };
 
   // User customizable preferences with localStorage persistence
   const [autoResearch, setAutoResearch] = useState(() => {
@@ -58,8 +120,6 @@ export default function Profile() {
   const displayName = displayEmail.includes('@')
     ? displayEmail.split('@')[0].charAt(0).toUpperCase() + displayEmail.split('@')[0].slice(1)
     : 'User';
-  const userId = user?.id || session?.user?.id || 'usr_' + Math.random().toString(36).substring(2, 10);
-
   // Load user's reels to calculate real-time stats
   const fetchUserVault = async () => {
     setLoadingReels(true);
@@ -173,7 +233,7 @@ export default function Profile() {
             {/* Avatar badge */}
             <div className="relative">
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl bg-[#d4f954] text-[#114b43] flex items-center justify-center font-display text-3xl sm:text-4xl shadow-md font-bold uppercase tracking-wider">
-                {displayName.charAt(0)}
+                {profile?.fullName ? profile.fullName.charAt(0) : displayName.charAt(0)}
               </div>
               <span
                 className="absolute -bottom-1 -right-1 w-5 h-5 bg-emerald-500 border-2 border-[#114b43] rounded-full"
@@ -185,7 +245,7 @@ export default function Profile() {
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-2xl sm:text-3xl font-display uppercase tracking-wide text-white">
-                  {displayName}
+                  {profile?.fullName || displayName}
                 </h2>
                 <span className="bg-[#d4f954] text-[#114b43] text-[10px] font-black uppercase px-2 py-0.5 rounded-full tracking-widest flex items-center gap-1">
                   <ShieldCheck size={11} strokeWidth={3} /> Verified
@@ -193,6 +253,13 @@ export default function Profile() {
                 <span className="bg-white/10 text-gray-200 text-[10px] font-bold uppercase px-2 py-0.5 rounded-full tracking-wider border border-white/15">
                   Early Adopter
                 </span>
+              </div>
+              <div className="flex items-center gap-2">
+                {profile?.username && (
+                  <span className="text-gray-400 text-sm font-medium">
+                    @{profile.username}
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2 text-gray-300 text-sm font-medium">
@@ -234,17 +301,260 @@ export default function Profile() {
               </span>
             </div>
 
-            <Link
-              to="/vault"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider transition-all border border-white/15 hover:border-white/30"
-            >
-              <Bookmark size={15} />
-              <span>Go to Vault</span>
-              <ArrowRight size={14} />
-            </Link>
+            <div className="flex gap-2">
+              {profile && !isEditingProfile && (
+                <button
+                  type="button"
+                  onClick={handleStartSetup}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white text-[#114b43] hover:bg-gray-100 font-bold text-xs uppercase tracking-wider transition-all shadow-sm"
+                >
+                  <Edit2 size={15} />
+                  <span>Edit Profile</span>
+                </button>
+              )}
+              <Link
+                to="/vault"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-bold text-xs uppercase tracking-wider transition-all border border-white/15 hover:border-white/30"
+              >
+                <Bookmark size={15} />
+                <span className="hidden sm:inline">Go to Vault</span>
+                <ArrowRight size={14} />
+              </Link>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Setup Profile Banner */}
+      {!profile && !isEditingProfile && (
+        <div className="bg-[#d4f954]/20 border border-[#d4f954]/50 rounded-[2rem] p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-sm">
+          <div>
+            <h3 className="text-[#114b43] font-display text-2xl uppercase tracking-wide">Complete Your Profile</h3>
+            <p className="text-[#114b43]/80 text-sm font-medium mt-1">Set up your preferences to get personalized opportunity recommendations.</p>
+          </div>
+          <button 
+            type="button"
+            onClick={handleStartSetup} 
+            className="w-full sm:w-auto bg-[#114b43] text-white px-8 py-3.5 rounded-xl font-bold text-xs uppercase tracking-wider hover:bg-[#0e3f38] transition-colors shadow-md"
+          >
+            Set Up Profile
+          </button>
+        </div>
+      )}
+
+      {/* Editing Form */}
+      {isEditingProfile && editForm && (
+        <section className="bg-white rounded-[2rem] p-6 sm:p-8 border border-gray-100 shadow-xl space-y-8 animate-fade-in">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <h2 className="font-display text-2xl uppercase tracking-wide text-[#1a1a1a]">
+              {profile ? 'Edit Profile' : 'Set Up Profile'}
+            </h2>
+            <button 
+              type="button"
+              onClick={() => setIsEditingProfile(false)}
+              className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Basic Info */}
+            <div className="space-y-4">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
+                <User size={16} className="text-[#114b43]" /> Basic Info
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-1">Full Name *</label>
+                  <input 
+                    type="text" 
+                    value={editForm.fullName} 
+                    onChange={e => setEditForm({...editForm, fullName: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-[#fbfbfa] border border-gray-200 rounded-xl text-sm font-semibold text-[#1a1a1a] focus:outline-none focus:border-[#114b43]"
+                    placeholder="Jane Doe"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-1">Username *</label>
+                  <input 
+                    type="text" 
+                    value={editForm.username} 
+                    onChange={e => setEditForm({...editForm, username: e.target.value})}
+                    className="w-full px-4 py-2.5 bg-[#fbfbfa] border border-gray-200 rounded-xl text-sm font-semibold text-[#1a1a1a] focus:outline-none focus:border-[#114b43]"
+                    placeholder="janedoe"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-gray-600 mb-1">Email (Read-only)</label>
+                  <input 
+                    type="email" 
+                    value={displayEmail} 
+                    disabled
+                    className="w-full px-4 py-2.5 bg-gray-100 border border-gray-200 rounded-xl text-sm font-semibold text-gray-500 cursor-not-allowed"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Opportunity Preferences */}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2 mb-3">
+                  <Briefcase size={16} className="text-[#114b43]" /> Interested In
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {INTERESTED_IN_OPTIONS.map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => handleToggleArray('interestedIn', opt)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                        (editForm.interestedIn || []).includes(opt) 
+                          ? 'bg-[#114b43] text-white' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2 mb-3">
+                  <Globe size={16} className="text-[#114b43]" /> Interest Domains
+                </h3>
+                <div className="flex flex-wrap gap-2">
+                  {DOMAIN_OPTIONS.map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => handleToggleArray('interestDomains', opt)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
+                        (editForm.interestDomains || []).includes(opt) 
+                          ? 'bg-[#114b43] text-white' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 mb-3">Opportunity Mode</h3>
+                <div className="flex flex-wrap gap-2">
+                  {MODE_OPTIONS.map(opt => (
+                    <button
+                      key={opt}
+                      type="button"
+                      onClick={() => setEditForm({...editForm, opportunityMode: opt})}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition-colors ${
+                        editForm.opportunityMode === opt 
+                          ? 'bg-[#d4f954] text-[#114b43] border border-[#114b43]/20' 
+                          : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      {opt}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="border-t border-gray-100 pt-6">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2 mb-4">
+              <Bell size={16} className="text-[#114b43]" /> Notifications
+            </h3>
+            <div className="space-y-3">
+              {[
+                { key: 'deadlineReminders', label: 'Deadline Reminders' },
+                { key: 'verificationCompleted', label: 'Verification Completed' },
+                { key: 'importantUpdates', label: 'Important Opportunity Updates' }
+              ].map(notif => (
+                <div key={notif.key} className="flex items-center justify-between py-2 border-b border-gray-50 last:border-0">
+                  <span className="text-sm font-medium text-gray-700">{notif.label}</span>
+                  <button
+                    type="button"
+                    role="switch"
+                    onClick={() => handleNotificationToggle(notif.key)}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      editForm.notifications?.[notif.key] ? 'bg-[#114b43]' : 'bg-gray-200'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        editForm.notifications?.[notif.key] ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-6 border-t border-gray-100 flex justify-end gap-3">
+            <button 
+              type="button"
+              onClick={() => setIsEditingProfile(false)}
+              className="px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-wider text-gray-500 hover:bg-gray-100 transition-colors"
+            >
+              Cancel
+            </button>
+            <button 
+              type="button"
+              onClick={handleSaveProfile}
+              className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#114b43] text-white hover:bg-[#0e3f38] font-bold text-xs uppercase tracking-wider transition-colors shadow-md"
+            >
+              <Save size={16} />
+              Save Profile
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* Profile Display View */}
+      {profile && !isEditingProfile && (
+        <section className="bg-white rounded-[2rem] p-6 sm:p-7 border border-gray-100 shadow-sm space-y-6">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <div className="flex items-center gap-2">
+              <Briefcase size={18} className="text-[#114b43]" />
+              <h2 className="font-display text-xl uppercase tracking-wide text-[#1a1a1a]">
+                Opportunity Preferences
+              </h2>
+            </div>
+            <span className="text-xs font-bold uppercase text-gray-400 bg-gray-100 px-2 py-1 rounded-md">Mode: {profile.opportunityMode}</span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Interested In</h3>
+              <div className="flex flex-wrap gap-2">
+                {profile.interestedIn?.length > 0 ? profile.interestedIn.map(opt => (
+                  <span key={opt} className="px-3 py-1 rounded-full text-xs font-bold bg-[#114b43]/5 text-[#114b43] border border-[#114b43]/10">
+                    {opt}
+                  </span>
+                )) : <span className="text-sm text-gray-400">None selected</span>}
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500 mb-3">Interest Domains</h3>
+              <div className="flex flex-wrap gap-2">
+                {profile.interestDomains?.length > 0 ? profile.interestDomains.map(opt => (
+                  <span key={opt} className="px-3 py-1 rounded-full text-xs font-bold bg-[#d4f954]/20 text-[#114b43] border border-[#d4f954]/40">
+                    {opt}
+                  </span>
+                )) : <span className="text-sm text-gray-400">None selected</span>}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* Activity & Performance Metrics Grid */}
       <section className="space-y-4">
