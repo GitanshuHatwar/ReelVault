@@ -4,7 +4,7 @@ import { useLanguage } from '../../preferences/LanguageContext';
 import { useAuth } from '../../auth/useAuth';
 import NotificationsBell from './NotificationsBell';
 
-export default function TopNav({ onOpenCalendar }) {
+export default function TopNav() {
   const location = useLocation();
   const { language, setLanguage } = useLanguage();
   const { isMock } = useAuth();
@@ -19,14 +19,9 @@ export default function TopNav({ onOpenCalendar }) {
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-sm border-b border-black/5 shadow-sm">
       <div className="max-w-5xl mx-auto px-4 lg:px-8 h-16 flex items-center justify-between">
         
-        {/* Interactive Logo Button that displays Calendar when pressed */}
+        {/* Logo Section */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenCalendar}
-            title="Press to view Saved Reels Calendar"
-            className="flex items-center gap-2.5 group cursor-pointer text-left bg-transparent border-none p-1.5 -ml-1.5 rounded-2xl transition-all hover:bg-[#F5F3E9] focus:outline-none focus:ring-2 focus:ring-[#114b43]/20"
-          >
+          <div className="flex items-center gap-2.5 group text-left bg-transparent border-none p-1.5 -ml-1.5 rounded-2xl transition-all">
             <div className="relative w-8 h-8 md:w-9 md:h-9 bg-[#114b43] rounded-xl flex items-center justify-center transition-all group-hover:scale-105 group-hover:shadow-sm">
               <Play className="text-[#d4f954] w-4 h-4 ml-0.5" fill="currentColor" />
               <span className="absolute -top-1 -right-1 w-3 h-3 bg-[#d4f954] rounded-full ring-2 ring-white flex items-center justify-center">
@@ -43,7 +38,7 @@ export default function TopNav({ onOpenCalendar }) {
                 <span className="hidden sm:inline">Calendar</span>
               </span>
             </div>
-          </button>
+          </div>
 
           {isMock && (
             <span
