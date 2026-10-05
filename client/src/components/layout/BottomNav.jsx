@@ -6,7 +6,6 @@ export default function BottomNav() {
   const navItems = [
     { name: 'Home', path: '/home', icon: Home },
     { name: 'Vault', path: '/vault', icon: Bookmark },
-    { name: 'Links', path: '/links', icon: Link2 },
     { name: 'Profile', path: '/profile', icon: User },
   ];
 

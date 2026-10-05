@@ -11,7 +11,6 @@ export default function TopNav() {
   const navItems = [
     { name: 'Home', path: '/home', icon: Home },
     { name: 'Vault', path: '/vault', icon: Bookmark },
-    { name: 'Links', path: '/links', icon: Link2 },
     { name: 'Profile', path: '/profile', icon: User },
   ];
 
@@ -32,10 +31,6 @@ export default function TopNav() {
             <div className="flex items-center gap-2">
               <span className="font-display text-xl tracking-wide uppercase mt-0.5 text-[#1a1a1a] group-hover:text-[#114b43] transition-colors">
                 ReelVault
-              </span>
-              <span className="bg-[#114b43] text-[#d4f954] text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 group-hover:bg-[#0e3d36] transition-colors">
-                <CalendarDays size={11} strokeWidth={2.5} />
-                <span className="hidden sm:inline">Calendar</span>
               </span>
             </div>
           </div>

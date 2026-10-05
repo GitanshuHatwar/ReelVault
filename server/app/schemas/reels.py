@@ -21,6 +21,27 @@ class MentionedSource(BaseModel):
         return value
 
 
+class ExtractedResource(BaseModel):
+    label: str
+    url: str
+
+
+class ExtractedDate(BaseModel):
+    label: str
+    date: str
+    iso_date: str | None = None
+    url: str | None = None
+
+
+class ExtractedExplore(BaseModel):
+    prize_pool: str | None = None
+    organizer: str | None = None
+    eligibility: str | None = None
+    location: str | None = None
+    category: str | None = None
+    benefits: str | None = None
+
+
 class ReelDetails(BaseModel):
     dates: list[str] = Field(default_factory=list)
     books: list[str] = Field(default_factory=list)
@@ -29,7 +50,7 @@ class ReelDetails(BaseModel):
 
 
 class ReelAnalysis(BaseModel):
-    """Gemini's three requested outputs for one exact transcript."""
+    """Gemini analysis and extracted sections for one exact transcript."""
 
     title: str = ""
     summary: str
@@ -38,6 +59,10 @@ class ReelAnalysis(BaseModel):
     tags: list[str] = Field(default_factory=list)
     sources: list[MentionedSource] = Field(default_factory=list)
     details: ReelDetails = Field(default_factory=ReelDetails)
+    resources: list[ExtractedResource] = Field(default_factory=list)
+    links: list[str] = Field(default_factory=list)
+    extracted_dates: list[ExtractedDate] = Field(default_factory=list)
+    explore: ExtractedExplore = Field(default_factory=ExtractedExplore)
 
 
 class ReelOut(BaseModel):

@@ -4,20 +4,31 @@ import {
   AlertCircle,
   ArrowRight,
   Bookmark,
+  BookmarkCheck,
   BookmarkPlus,
-  CalendarPlus,
+  Calendar,
   CalendarDays,
+  CalendarPlus,
+  Check,
   CheckCircle2,
+  Clock,
+  Compass,
+  Copy,
   ExternalLink,
   Eye,
+  FileText,
   Globe,
-  LoaderCircle,
-  List,
   Link2,
+  List,
+  LoaderCircle,
+  Plus,
   Search,
+  Share2,
   ShieldCheck,
   Sparkles,
+  Tag,
   Trash2,
+  X,
   XCircle,
 } from "lucide-react";
 import { api, ApiError } from "../services/api";
@@ -115,43 +126,1060 @@ function openGoogleCalendar(reel, label, dateString) {
   window.open(`https://calendar.google.com/calendar/render?${params.toString()}`, '_blank');
 }
 
-function ReelAnalysisPanel({ reel, onSaveLink, onSaveDate, onSaveToLinkVault, savedLinks, savedDates, linkVaultEntries }) {
-  const analysis = reel.analysis;
-  const [manualDate, setManualDate] = useState("");
-  if (!analysis) return null;
-  const details = analysis.details || {};
-  const sources = analysis.sources || [];
-  const dates = details.dates || [];
-  const topics = [...new Set([...(analysis.tags || []), ...(details.competitions || []), ...(details.people || []), ...(details.books || [])])];
-  const inLinkVault = linkVaultEntries.some((entry) => entry.reel_id === reel.reel_id);
+const IMPORTANT_KEYWORD_REGEX = new RegExp(
+  "\\b(" +
+  [
+    "Amazon",
+    "Google",
+    "Microsoft",
+    "Meta",
+    "Apple",
+    "NVIDIA",
+    "OpenAI",
+    "Odoo",
+    "Quizlet",
+    "AI Founders",
+    "Hackathon",
+    "Hackathons",
+    "Prize Pool",
+    "Prize",
+    "Prizes",
+    "Bounty",
+    "Bounties",
+    "Deadline",
+    "Deadlines",
+    "Registration",
+    "Register",
+    "Scholarship",
+    "Scholarships",
+    "Internship",
+    "Internships",
+    "Eligibility",
+    "Eligible",
+    "Fellowship",
+    "Fellowships",
+    "Stipend",
+    "Stipends",
+    "Competition",
+    "Competitions",
+    "Contest",
+    "Contests",
+    "Challenge",
+    "Challenges",
+    "Grant",
+    "Grants",
+  ].join("|") +
+  ")\\b|" +
+  "(?:₹|Rs\\.?|INR)\\s*[\\d,]+(?:\\s*(?:lakhs?|cr|crores?|k))?|" +
+  "\\$\\s*[\\d,]+(?:\\s*(?:k|million|m))?|" +
+  "\\b\\d+(?:,\\d+)*(?:\\s*(?:lakhs?|crores?))\\b",
+  "gi"
+);
 
-  const handleCalendarAction = (reel, payload) => {
-    const pref = localStorage.getItem('reelvault_pref_export');
-    if (pref === 'google') {
-      openGoogleCalendar(reel, payload.label, payload.event_date);
-    } else {
-      onSaveDate(reel, payload);
+function renderHighlightedSummary(summary, extraKeywords = []) {
+  if (!summary) return <span className="text-gray-400 italic">No summary available.</span>;
+
+  // Split out markdown bold chunks first
+  const boldParts = summary.split(/(\*\*[^*]+\*\*)/g);
+
+  let regex = IMPORTANT_KEYWORD_REGEX;
+  const validExtra = (extraKeywords || [])
+    .filter((k) => typeof k === "string" && k.trim().length > 2)
+    .map((k) => k.trim().replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&"));
+
+  if (validExtra.length > 0) {
+    regex = new RegExp(
+      `\\b(${validExtra.join("|")})\\b|` + IMPORTANT_KEYWORD_REGEX.source,
+      "gi"
+    );
+  }
+
+  return (
+    <>
+      {boldParts.map((part, pIdx) => {
+        if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+          return (
+            <strong key={`bold-${pIdx}`} className="font-bold text-gray-900">
+              {part.slice(2, -2)}
+            </strong>
+          );
+        }
+
+        const tokens = [];
+        let lastIndex = 0;
+        let match;
+        const re = new RegExp(regex);
+
+        while ((match = re.exec(part)) !== null) {
+          if (match.index > lastIndex) {
+            tokens.push(part.substring(lastIndex, match.index));
+          }
+          tokens.push(
+            <strong key={`kw-${pIdx}-${match.index}`} className="font-bold text-gray-900">
+              {match[0]}
+            </strong>
+          );
+          lastIndex = re.lastIndex;
+        }
+
+        if (lastIndex < part.length) {
+          tokens.push(part.substring(lastIndex));
+        }
+
+        return <span key={`chunk-${pIdx}`}>{tokens}</span>;
+      })}
+    </>
+  );
+}
+
+function getExtractedData(reel) {
+  const analysis = reel.analysis || {};
+  const fullText = [
+    reel.title || "",
+    reel.transcript || "",
+    reel.caption || "",
+    analysis.summary || "",
+    analysis.english_transcript || "",
+    ...(analysis.summary_points || []),
+  ].join(" ");
+
+  // 1. Detected Links (all URLs detected across transcript/caption/sources/links)
+  const linksMap = new Map();
+  const addDetectedLink = (rawUrl, contextLabel = null) => {
+    if (!rawUrl || typeof rawUrl !== "string") return;
+    let clean = rawUrl.trim().replace(/[.,;:!?)'"]+$/, "");
+    if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+      if (/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}/i.test(clean)) {
+        clean = "https://" + clean;
+      } else {
+        return;
+      }
+    }
+    const key = clean.toLowerCase();
+    if (!linksMap.has(key)) {
+      let hostname = clean;
+      try {
+        hostname = new URL(clean).hostname;
+      } catch {}
+      linksMap.set(key, { url: clean, hostname, contextLabel });
     }
   };
 
-  return <>
-    <section className="mb-4 rounded-2xl border border-[#114b43]/10 bg-[#F5F3E9] p-5">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43]">Reel summary</p>
-      {analysis.summary_points?.length > 0 ? <ol className="mt-3 space-y-2 text-sm leading-6 text-gray-700">{analysis.summary_points.map((point, index) => <li key={`${index}-${point}`} className="flex gap-3"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#114b43] text-[10px] font-bold text-white">{index + 1}</span><span>{point}</span></li>)}</ol> : <p className="mt-2 text-sm leading-6 text-gray-700">{analysis.summary}</p>}
-    </section>
-    <section className="mb-5 rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 pb-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43]">Reel resources</p><p className="mt-1 text-sm text-gray-500">Save links, dates and search topics separately from the summary.</p></div><button type="button" onClick={() => onSaveToLinkVault(reel, sources, topics)} disabled={inLinkVault} className="inline-flex items-center gap-1.5 rounded-lg bg-[#114b43] px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-white disabled:bg-gray-300"><BookmarkPlus size={14} />{inLinkVault ? "In Link Vault" : "Add to Link Vault"}</button></div>
-      <div className="mt-4 grid gap-5 lg:grid-cols-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Links & sources</p>{sources.length === 0 ? <p className="text-sm text-gray-400">No links were found in this reel.</p> : <div className="flex flex-wrap gap-2">{sources.map((source, index) => { const href = sourceHref(source.url || (/^[\w.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(source.name) ? source.name : null)); const saved = savedLinks.some((item) => item.reel_id === reel.reel_id && item.url === href); return <span key={`${source.name}-${index}`} className="inline-flex items-center gap-2 rounded-lg bg-[#F5F3E9] px-2.5 py-1.5 text-sm font-medium text-gray-700">{href ? <a href={href} target="_blank" rel="noreferrer" className="font-semibold text-blue-600 underline underline-offset-2 hover:text-blue-800">{source.name}</a> : source.name}<button type="button" disabled={!href || saved} onClick={() => onSaveLink(reel, source)} className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:text-gray-400"><BookmarkPlus size={12} />{saved ? "Saved" : "Save"}</button></span>; })}</div>}</div><div><div className="flex items-center justify-between mb-2"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">Dates</p><Link to="/profile#calendar-integration" title="Configure Google Calendar" aria-label="Configure Google Calendar" className="text-gray-400 hover:text-[#114b43]"><Eye size={14} /></Link></div>{dates.length === 0 ? <p className="text-sm text-gray-400">No dates were found in this reel.</p> : <ul className="space-y-2 text-sm text-gray-700">{dates.map((value) => <li key={value} className="flex items-center gap-2"><span className="text-[#114b43]">•</span><span>{value}</span></li>)}</ul>}</div></div>
-      {topics.length > 0 && <div className="mt-5 border-t border-gray-100 pt-4"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Topics to explore</p><div className="flex flex-wrap gap-2">{topics.map((topic) => <a key={topic} href={`https://www.google.com/search?q=${encodeURIComponent(topic)}`} target="_blank" rel="noreferrer" className="rounded-full bg-[#F5F3E9] px-3 py-1.5 text-xs font-bold text-[#114b43] hover:bg-[#e8e5d6]">Search {topic}</a>)}</div></div>}
-      <div className="mt-5 border-t border-gray-100 pt-4"><p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">Add an important date</p><div className="flex flex-wrap items-center gap-2"><input type="date" value={manualDate} onChange={(event) => setManualDate(event.target.value)} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs text-gray-700" /><button type="button" disabled={!manualDate} onClick={() => { handleCalendarAction(reel, { label: `Important date for ${reel.title}`, event_date: manualDate }); setManualDate(""); }} className="inline-flex items-center gap-1 rounded-lg border border-[#114b43] px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest text-[#114b43] disabled:border-gray-200 disabled:text-gray-400"><CalendarPlus size={12} /> Add to calendar</button></div></div>
-    </section>
-  </>;
+  (analysis.links || []).forEach((u) => addDetectedLink(u, "Direct Link"));
+  (analysis.sources || []).forEach((s) => {
+    if (s.url) addDetectedLink(s.url, s.name);
+  });
+
+  const URL_DETECTION_REGEX =
+    /https?:\/\/[^\s)\]>"',]+|(?:www\.)[-a-zA-Z0-9@:%._+~#=]{2,256}\.[a-z]{2,6}(?:\/[-\w@:%_+.~#?&/=]*)?|\b(?:github\.com|summerofcode\.withgoogle\.com|aifoundersgrant\.org|forms\.gle|quizlet\.com|odoo\.com|amazon\.com|nvidia\.com|google\.com)[^\s)\]>"',]*/gi;
+  let urlMatch;
+  while ((urlMatch = URL_DETECTION_REGEX.exec(fullText)) !== null) {
+    addDetectedLink(urlMatch[0], "Transcript Mention");
+  }
+
+  const allDetectedLinks = Array.from(linksMap.values());
+
+  // 2. Actionable Resources
+  const resourcesList = [];
+  const resUrls = new Set();
+  const addResource = (label, url) => {
+    if (!url) return;
+    let clean = url.trim().replace(/[.,;:!?)'"]+$/, "");
+    if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+      clean = "https://" + clean;
+    }
+    const key = clean.toLowerCase();
+    if (!resUrls.has(key)) {
+      resUrls.add(key);
+      resourcesList.push({ label: label || "Official Resource", url: clean });
+    }
+  };
+
+  (analysis.resources || []).forEach((r) => addResource(r.label, r.url));
+  (analysis.sources || []).forEach((s) => {
+    if (s.url) {
+      let lbl = s.name || "Official Website";
+      if (/apply|portal/i.test(s.name || s.url)) lbl = "Application";
+      else if (/register|reg/i.test(s.name || s.url)) lbl = "Registration";
+      else if (/github/i.test(s.name || s.url)) lbl = "GitHub Repository";
+      addResource(lbl, s.url);
+    }
+  });
+
+  allDetectedLinks.forEach(({ url, hostname }) => {
+    const low = url.toLowerCase();
+    let lbl = null;
+    if (low.includes("register") || low.includes("registration")) lbl = "Registration";
+    else if (low.includes("apply") || low.includes("application")) lbl = "Application";
+    else if (low.includes("github.com")) lbl = "GitHub Repository";
+    else if (low.includes("forms.gle") || low.includes("form")) lbl = "Form";
+    else if (low.includes("docs.") || low.includes("documentation")) lbl = "Documentation";
+    else if (resourcesList.length === 0) lbl = `Official Website (${hostname})`;
+    if (lbl) addResource(lbl, url);
+  });
+
+  if (resourcesList.length === 0 && allDetectedLinks.length > 0) {
+    addResource(`Official Link (${allDetectedLinks[0].hostname})`, allDetectedLinks[0].url);
+  }
+
+  // 3. Actionable Dates (Zero hallucination: only real dates)
+  const regUrl =
+    resourcesList.find((r) => /register|apply|form/i.test(r.label || r.url))?.url ||
+    allDetectedLinks[0]?.url ||
+    null;
+
+  const datesList = [];
+  const seenDates = new Set();
+  const addDateItem = (label, dateStr, isoDate, url) => {
+    if (!dateStr) return;
+    const key = (isoDate || dateStr).toLowerCase();
+    if (!seenDates.has(key)) {
+      seenDates.add(key);
+      datesList.push({
+        label: label || "Actionable Date",
+        date: dateStr,
+        iso_date: isoDate || toInputDate(dateStr) || null,
+        url: url || regUrl || null,
+      });
+    }
+  };
+
+  (analysis.extracted_dates || []).forEach((d) => {
+    addDateItem(d.label, d.date, d.iso_date, d.url);
+  });
+
+  (analysis.details?.dates || []).forEach((dStr) => {
+    let lbl = "Important Date";
+    const low = fullText.toLowerCase();
+    if (low.includes("deadline") || low.includes("last date") || low.includes("closes")) {
+      lbl = "Registration Deadline";
+    } else if (low.includes("hackathon") || low.includes("finals") || low.includes("pitch")) {
+      lbl = "Hackathon / Event Date";
+    }
+    addDateItem(lbl, formatDate(dStr), toInputDate(dStr), regUrl);
+  });
+
+  // 4. Explore section
+  const explore = {
+    prize_pool:
+      analysis.explore?.prize_pool ||
+      (fullText.match(/(?:₹|Rs\.?|INR)\s*[\d,]+(?:\s*(?:lakhs?|cr|crores?|k))?/i)?.[0]) ||
+      (fullText.match(/\$\s*[\d,]+(?:\s*(?:k|million|m))?/i)?.[0]) ||
+      null,
+    organizer:
+      analysis.explore?.organizer ||
+      (fullText.match(/\b(Amazon|Google|Microsoft|Meta|NVIDIA|Quizlet|Odoo|Apple|OpenAI|AI Founders)\b/i)?.[0]) ||
+      analysis.details?.people?.[0] ||
+      null,
+    eligibility:
+      analysis.explore?.eligibility ||
+      (fullText.toLowerCase().includes("student") ? "Students / Developers" : null),
+    location:
+      analysis.explore?.location ||
+      (fullText.toLowerCase().includes("san francisco")
+        ? "San Francisco"
+        : fullText.toLowerCase().includes("online")
+        ? "Online"
+        : "Online / Global"),
+    category:
+      analysis.explore?.category ||
+      (analysis.tags?.[0]
+        ? analysis.tags[0].charAt(0).toUpperCase() + analysis.tags[0].slice(1)
+        : "Opportunity"),
+    benefits:
+      analysis.explore?.benefits ||
+      (fullText.toLowerCase().includes("internship")
+        ? "Internship opportunities, certificates & prizes"
+        : fullText.toLowerCase().includes("stipend")
+        ? "Stipend, open source mentorship & certificate"
+        : null),
+    topics: [
+      ...new Set([
+        ...(analysis.tags || []),
+        ...(analysis.details?.competitions || []),
+        ...(analysis.details?.people || []),
+      ]),
+    ],
+  };
+
+  return {
+    resources: resourcesList,
+    links: allDetectedLinks,
+    dates: datesList,
+    explore,
+  };
+}
+
+function ExtractionResultCard({
+  reel,
+  onSaveLink,
+  onSaveDate,
+  onDelete,
+  onAnalyze,
+  savedLinks = [],
+  savedDates = [],
+  isForYouActive,
+  reelScore,
+}) {
+  const [activeSection, setActiveSection] = useState(null);
+  const [showAddDate, setShowAddDate] = useState(false);
+  const [newDateLabel, setNewDateLabel] = useState("");
+  const [newDateValue, setNewDateValue] = useState("");
+  const [newDateUrl, setNewDateUrl] = useState("");
+  const [copiedUrl, setCopiedUrl] = useState(null);
+  const [showAddManualLink, setShowAddManualLink] = useState(false);
+  const [manualLinkUrl, setManualLinkUrl] = useState("");
+  const [manualLinkLabel, setManualLinkLabel] = useState("");
+
+  const isSavedToShelf = (url) => {
+    if (!url) return false;
+    const clean = url.trim().toLowerCase();
+    return (savedLinks || []).some((item) => (item.url || "").trim().toLowerCase() === clean);
+  };
+
+  const { links, dates, explore } = getExtractedData(reel);
+  const summary = reel.analysis?.summary || reel.caption || reel.transcript || "Summary not available.";
+
+  // Detect if the reel relates to an internship, scheme, scholarship, hackathon, competition, or opportunity
+  const analysis = reel.analysis || {};
+  const isOpportunityOrScheme =
+    analysis.is_opportunity ||
+    /(internship|scheme|scholarship|hackathon|fellowship|grant|competition|contest|bounty|yojana|challenge|program)/i.test(
+      `${reel.title || ""} ${explore.category || ""} ${(analysis.tags || []).join(" ")}`
+    ) ||
+    Boolean(
+      explore.category &&
+      !/^(other|video|entertainment|reel)$/i.test(explore.category)
+    );
+
+  // Determine specific scheme/opportunity name
+  let schemeName = null;
+  if (isOpportunityOrScheme) {
+    if (reel.title && !/^reel\s*\d+/i.test(reel.title)) {
+      schemeName = reel.title;
+    } else if (explore.organizer && explore.category) {
+      schemeName = `${explore.organizer} ${explore.category}`;
+    } else if (explore.organizer) {
+      schemeName = `${explore.organizer} Opportunity`;
+    } else if (analysis.tags?.length > 0) {
+      schemeName = `${analysis.tags[0]} Opportunity`;
+    } else {
+      schemeName = "Identified Scheme / Opportunity";
+    }
+  }
+
+  // Look for official registration or application URL
+  let officialRegUrl = null;
+  let officialRegLabel = null;
+
+  // 1. Direct registration / apply links
+  const regLink = links.find(
+    (l) =>
+      /register|registration|apply|application|form|portal/i.test(l.url) ||
+      /register|apply|form|portal/i.test(l.contextLabel || "")
+  );
+
+  if (regLink) {
+    officialRegUrl = regLink.url;
+    officialRegLabel = regLink.contextLabel || "Official Registration Page";
+  } else {
+    // 2. Official sources or resources from analysis
+    const sourceWithUrl = (analysis.sources || []).find(
+      (s) => s.url && !/(instagram\.com|tiktok\.com|youtube\.com|youtu\.be)/i.test(s.url)
+    );
+    const resourceWithUrl = (analysis.resources || []).find(
+      (r) => r.url && !/(instagram\.com|tiktok\.com|youtube\.com|youtu\.be)/i.test(r.url)
+    );
+
+    if (sourceWithUrl) {
+      officialRegUrl = sourceHref(sourceWithUrl.url);
+      officialRegLabel = sourceWithUrl.name || "Official Portal";
+    } else if (resourceWithUrl) {
+      officialRegUrl = sourceHref(resourceWithUrl.url);
+      officialRegLabel = resourceWithUrl.label || "Official Portal";
+    } else {
+      // 3. First non-social detected link
+      const firstNonSocial = links.find(
+        (l) => !/(instagram\.com|tiktok\.com|youtube\.com|youtu\.be)/i.test(l.url)
+      );
+      if (firstNonSocial) {
+        officialRegUrl = firstNonSocial.url;
+        officialRegLabel = `Official Page (${firstNonSocial.hostname})`;
+      }
+    }
+  }
+
+  const webSearchQuery = schemeName
+    ? `${schemeName} official registration portal application`
+    : `${reel.title || "opportunity"} official registration`;
+  const webSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(webSearchQuery)}`;
+
+  const toggleSection = (section) => {
+    setActiveSection((current) => (current === section ? null : section));
+  };
+
+  const handleCopy = (url) => {
+    if (!url) return;
+    navigator.clipboard?.writeText(url);
+    setCopiedUrl(url);
+    setTimeout(() => setCopiedUrl(null), 2000);
+  };
+
+  const handleSaveManualLink = (e) => {
+    e.preventDefault();
+    if (!manualLinkUrl.trim()) return;
+    const cleanUrl = sourceHref(manualLinkUrl.trim());
+    if (!cleanUrl) return;
+    const label = manualLinkLabel.trim() || manualLinkUrl.trim();
+    onSaveLink(reel, { name: label, label, url: cleanUrl });
+    setManualLinkUrl("");
+    setManualLinkLabel("");
+    setShowAddManualLink(false);
+  };
+
+  const handleAddDateSubmit = (e) => {
+    e.preventDefault();
+    if (!newDateValue.trim()) return;
+    const label = newDateLabel.trim() || `Important date for ${reel.title}`;
+    const payload = {
+      label,
+      event_date: newDateValue.trim(),
+      url: newDateUrl.trim() ? sourceHref(newDateUrl.trim()) : null,
+    };
+    const pref = localStorage.getItem("reelvault_pref_export");
+    if (pref === "google") {
+      openGoogleCalendar(reel, label, newDateValue.trim());
+    }
+    onSaveDate(reel, payload);
+    setNewDateLabel("");
+    setNewDateValue("");
+    setNewDateUrl("");
+    setShowAddDate(false);
+    setActiveSection("dates");
+  };
+
+  const handleExportCalendar = (item) => {
+    const targetDate = item.iso_date || toInputDate(item.date);
+    if (!targetDate) return;
+    const pref = localStorage.getItem("reelvault_pref_export");
+    if (pref === "google") {
+      openGoogleCalendar(reel, item.label, targetDate);
+    } else {
+      onSaveDate(reel, { label: item.label, event_date: targetDate, url: item.url });
+    }
+  };
+
+  return (
+    <article
+      id={`vault-reel-${reel.reel_id}`}
+      className="bg-white rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm transition-all"
+    >
+      {/* 1. Header: Platform & Delete */}
+      <div className="flex items-start justify-between gap-4 mb-2">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <span className="rounded-full bg-gray-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-gray-600">
+            {reel.platform}
+            {reel.author ? ` · ${reel.author}` : ""}
+          </span>
+          <span className="flex items-center gap-1 text-[11px] font-medium text-gray-400">
+            <CalendarDays size={13} /> Saved {formatDate(reel.created_at)}
+          </span>
+          {isForYouActive && reelScore?.score > 0 && (
+            <span className="bg-[#114b43] text-[#d4f954] px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-xs">
+              <Sparkles size={10} /> {reelScore.score}% Match
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => onDelete(reel.reel_id)}
+          className="text-gray-300 hover:text-red-500 p-1 transition-colors"
+          title="Remove from vault"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+
+      {reel.analysis_error && (
+        <p
+          role="alert"
+          className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900"
+        >
+          <strong>Notice:</strong> {reel.analysis_error}
+        </p>
+      )}
+
+      {/* 1. MAIN VISIBLE CONTENT: ONLY TITLE & SUMMARY */}
+      <h3 className="text-xl sm:text-2xl font-bold text-[#1a1a1a] leading-snug">
+        {reel.title}
+      </h3>
+
+      <div className="mt-3 text-sm sm:text-base leading-relaxed text-gray-700">
+        {renderHighlightedSummary(summary, [
+          explore.organizer,
+          explore.category,
+          ...(explore.topics || []),
+        ])}
+      </div>
+
+      {/* 2. ACTIONS DIRECTLY BELOW SUMMARY: Analyze, + Add Date, Open original */}
+      <div className="mt-4 flex flex-wrap items-center gap-2.5 pt-1">
+        <button
+          type="button"
+          onClick={() => onAnalyze && onAnalyze(reel)}
+          className="inline-flex items-center gap-1.5 rounded-xl border border-[#114b43] bg-[#114b43] px-3.5 py-1.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#0c3630] transition-colors shadow-xs"
+          title="Analyze in Deep Fridge to view original transcript and verify truth"
+        >
+          <Sparkles size={13} /> Analyze
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowAddDate((prev) => !prev)}
+          className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-colors ${
+            showAddDate
+              ? "bg-[#114b43] text-white border-[#114b43]"
+              : "bg-[#F5F3E9] text-[#114b43] border-[#114b43]/20 hover:bg-[#ece8d7]"
+          }`}
+        >
+          <CalendarPlus size={13} /> Add Date
+        </button>
+        <a
+          href={reel.url}
+          target="_blank"
+          rel="noreferrer"
+          className="ml-auto inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-800 underline underline-offset-4"
+        >
+          Open original <ExternalLink size={12} />
+        </a>
+      </div>
+
+      {/* Inline Form: Add Date */}
+      {showAddDate && (
+        <form
+          onSubmit={handleAddDateSubmit}
+          className="mt-3.5 rounded-2xl border border-[#114b43]/25 bg-[#F5F3E9] p-4 space-y-3"
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-[#114b43]">
+              + Add Date to Calendar
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowAddDate(false)}
+              className="text-gray-400 hover:text-gray-700"
+            >
+              <X size={15} />
+            </button>
+          </div>
+          <div className="grid gap-2.5 sm:grid-cols-3">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+                Event / Deadline Label
+              </label>
+              <input
+                type="text"
+                placeholder="e.g., Registration Deadline"
+                value={newDateLabel}
+                onChange={(e) => setNewDateLabel(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#114b43]"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+                Date
+              </label>
+              <input
+                type="date"
+                value={newDateValue}
+                onChange={(e) => setNewDateValue(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-[#114b43]"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+                Associated Link (Optional)
+              </label>
+              <input
+                type="url"
+                placeholder="https://..."
+                value={newDateUrl}
+                onChange={(e) => setNewDateUrl(e.target.value)}
+                className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#114b43]"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setShowAddDate(false)}
+              className="px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="rounded-xl bg-[#114b43] px-4 py-1.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#0c3630] transition-colors shadow-xs"
+            >
+              Save Date
+            </button>
+          </div>
+        </form>
+      )}
+
+      {/* 3. BOTTOM INFORMATION SECTION BAR (Order: 1. Explore, 2. Links, 3. Dates) */}
+      <div className="mt-5 pt-3 border-t border-gray-100">
+        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+          {/* 1) Explore Tab */}
+          <button
+            type="button"
+            onClick={() => toggleSection("explore")}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
+              activeSection === "explore"
+                ? "bg-[#114b43] text-white shadow-xs"
+                : "bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-[#114b43]"
+            }`}
+          >
+            <Compass size={13} />
+            <span>Explore</span>
+          </button>
+
+          {/* 2) Links Tab */}
+          <button
+            type="button"
+            onClick={() => toggleSection("links")}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
+              activeSection === "links"
+                ? "bg-[#114b43] text-white shadow-xs"
+                : "bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-[#114b43]"
+            }`}
+          >
+            <Globe size={13} />
+            <span>Links</span>
+            {(links.length > 0 || isOpportunityOrScheme) && (
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  activeSection === "links"
+                    ? "bg-white/20 text-white"
+                    : "bg-[#114b43]/10 text-[#114b43]"
+                }`}
+              >
+                {links.length || 1}
+              </span>
+            )}
+          </button>
+
+          {/* 3) Dates Tab */}
+          <button
+            type="button"
+            onClick={() => toggleSection("dates")}
+            className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold uppercase tracking-wider transition-all ${
+              activeSection === "dates"
+                ? "bg-[#114b43] text-white shadow-xs"
+                : "bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-[#114b43]"
+            }`}
+          >
+            <Calendar size={13} />
+            <span>Dates</span>
+            {dates.length > 0 && (
+              <span
+                className={`rounded-full px-1.5 py-0.2 text-[10px] font-bold ${
+                  activeSection === "dates"
+                    ? "bg-white/20 text-white"
+                    : "bg-[#114b43]/10 text-[#114b43]"
+                }`}
+              >
+                {dates.length}
+              </span>
+            )}
+          </button>
+        </div>
+
+        {/* 4. SELECTED SECTION CONTENT */}
+        {activeSection && (
+          <div className="mt-4 rounded-2xl bg-gray-50/70 border border-gray-100 p-4">
+            {/* 1) Explore Section View */}
+            {activeSection === "explore" && (
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] mb-3 flex items-center gap-1.5">
+                  <Compass size={13} /> Extracted Metadata & Exploration
+                </p>
+                <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+                  {explore.organizer && (
+                    <div className="rounded-xl bg-white border border-gray-200/80 p-3 shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
+                        Organizer / Company
+                      </p>
+                      <p className="text-xs font-bold text-gray-900">{explore.organizer}</p>
+                    </div>
+                  )}
+                  {explore.prize_pool && (
+                    <div className="rounded-xl bg-white border border-gray-200/80 p-3 shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
+                        Prize Pool
+                      </p>
+                      <p className="text-xs font-bold text-emerald-800">{explore.prize_pool}</p>
+                    </div>
+                  )}
+                  {explore.category && (
+                    <div className="rounded-xl bg-white border border-gray-200/80 p-3 shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
+                        Category
+                      </p>
+                      <p className="text-xs font-bold text-gray-900">{explore.category}</p>
+                    </div>
+                  )}
+                  {explore.eligibility && (
+                    <div className="rounded-xl bg-white border border-gray-200/80 p-3 shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
+                        Eligibility
+                      </p>
+                      <p className="text-xs font-bold text-gray-900">{explore.eligibility}</p>
+                    </div>
+                  )}
+                  {explore.location && (
+                    <div className="rounded-xl bg-white border border-gray-200/80 p-3 shadow-2xs">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
+                        Location / Mode
+                      </p>
+                      <p className="text-xs font-bold text-gray-900">{explore.location}</p>
+                    </div>
+                  )}
+                  {explore.benefits && (
+                    <div className="rounded-xl bg-white border border-gray-200/80 p-3 shadow-2xs sm:col-span-2 lg:col-span-1">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-0.5">
+                        Benefits & Perks
+                      </p>
+                      <p className="text-xs font-bold text-gray-900">{explore.benefits}</p>
+                    </div>
+                  )}
+                </div>
+
+                {explore.topics?.length > 0 && (
+                  <div className="mt-3.5 pt-3 border-t border-gray-200/60">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+                      Search Topics:
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {explore.topics.map((top) => (
+                        <a
+                          key={top}
+                          href={`https://www.google.com/search?q=${encodeURIComponent(top)}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-full bg-white border border-gray-200 px-2.5 py-1 text-[11px] font-semibold text-[#114b43] hover:bg-[#F5F3E9] transition-colors"
+                        >
+                          {top}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 2) Links Section View */}
+            {activeSection === "links" && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] flex items-center gap-1.5">
+                    <Globe size={13} /> Scheme Registration & Detected Links
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAddManualLink((prev) => !prev)}
+                      className="inline-flex items-center gap-1 rounded-lg border border-[#114b43]/30 bg-white px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider text-[#114b43] hover:bg-[#F5F3E9] transition-colors shadow-2xs"
+                    >
+                      <BookmarkPlus size={12} /> Save Link
+                    </button>
+                    <span className="text-[11px] text-gray-400">
+                      {links.length} {links.length === 1 ? "link" : "links"} detected
+                    </span>
+                  </div>
+                </div>
+
+                {/* Optional manual add link form */}
+                {showAddManualLink && (
+                  <form
+                    onSubmit={handleSaveManualLink}
+                    className="mb-4 rounded-xl border border-[#114b43]/20 bg-[#F5F3E9] p-3.5 space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#114b43]">
+                        Save Custom Link to Link Shelf
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowAddManualLink(false)}
+                        className="text-gray-400 hover:text-gray-700"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <input
+                        type="url"
+                        placeholder="https://example.com/portal"
+                        value={manualLinkUrl}
+                        onChange={(e) => setManualLinkUrl(e.target.value)}
+                        required
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-[#114b43]"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Link label or description"
+                        value={manualLinkLabel}
+                        onChange={(e) => setManualLinkLabel(e.target.value)}
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-[#114b43]"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowAddManualLink(false)}
+                        className="px-2.5 py-1 text-xs text-gray-600 hover:text-gray-900"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="rounded-lg bg-[#114b43] px-3.5 py-1 text-xs font-bold text-white hover:bg-[#0c3630]"
+                      >
+                        Save to Shelf
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Requirement 3: If internship/scheme/hackathon is found:
+                    provide link to register to official page, or if not found give option to search on web */}
+                {isOpportunityOrScheme && (
+                  <div className="mb-4 rounded-2xl border border-gray-200/90 bg-white p-4 shadow-2xs">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2 mb-1">
+                          <span className="rounded-full bg-[#114b43]/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[#114b43]">
+                            {explore.category || "Opportunity / Scheme"}
+                          </span>
+                          {officialRegUrl ? (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+                              <CheckCircle2 size={11} className="text-emerald-600" /> Official Link Available
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 border border-amber-200 px-2 py-0.5 text-[10px] font-bold text-amber-800">
+                              <Search size={11} className="text-amber-600" /> Direct Link Not in Video
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="text-sm font-bold text-gray-900 leading-snug">
+                          {schemeName}
+                        </h4>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {officialRegUrl
+                            ? `Direct link to register or access official page for this ${explore.category?.toLowerCase() || "scheme"}:`
+                            : `The official link was not mentioned directly in the reel transcript. You can search on the web for the official page below:`}
+                        </p>
+                        {officialRegUrl && (
+                          <p className="mt-1 text-xs font-mono text-emerald-800 truncate">
+                            {officialRegUrl}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 flex flex-wrap items-center gap-2">
+                        {officialRegUrl ? (
+                          <>
+                            {isSavedToShelf(officialRegUrl) ? (
+                              <span className="inline-flex items-center gap-1 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs font-bold text-emerald-800">
+                                <BookmarkCheck size={13} className="text-emerald-600" /> Saved to Shelf
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  onSaveLink(reel, {
+                                    name: `${schemeName} Registration`,
+                                    label: `${schemeName} Registration`,
+                                    url: officialRegUrl,
+                                  })
+                                }
+                                className="inline-flex items-center gap-1 rounded-xl border border-[#114b43]/30 bg-white px-3 py-2 text-xs font-bold text-[#114b43] hover:bg-[#F5F3E9] transition-colors"
+                                title="Save link to Shelf"
+                              >
+                                <BookmarkPlus size={13} /> Save Link
+                              </button>
+                            )}
+                            <a
+                              href={officialRegUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1.5 rounded-xl bg-[#114b43] px-4 py-2 text-xs font-bold text-white hover:bg-[#0c3630] transition-colors shadow-xs"
+                            >
+                              Register on Official Page <ExternalLink size={12} />
+                            </a>
+                          </>
+                        ) : (
+                          <a
+                            href={webSearchUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-700 transition-colors shadow-xs"
+                          >
+                            <Search size={13} /> Search on Web <ExternalLink size={12} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Detected URLs List */}
+                {links.length === 0 && !isOpportunityOrScheme ? (
+                  <p className="text-xs text-gray-500 py-2">
+                    No links detected in the transcript.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {links.map((item, idx) => (
+                      <div
+                        key={`${item.url}-${idx}`}
+                        className="rounded-xl bg-white border border-gray-200/80 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-gray-800 truncate">
+                            {item.hostname}
+                          </p>
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] text-blue-600 hover:underline truncate block"
+                          >
+                            {item.url}
+                          </a>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {isSavedToShelf(item.url) ? (
+                            <span className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                              <BookmarkCheck size={12} className="text-emerald-600" /> Saved
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                onSaveLink(reel, {
+                                  name: item.hostname || reel.title,
+                                  label: item.hostname || reel.title,
+                                  url: item.url,
+                                })
+                              }
+                              className="inline-flex items-center gap-1 rounded-lg border border-[#114b43]/30 bg-white px-2.5 py-1 text-xs font-bold text-[#114b43] hover:bg-[#F5F3E9] transition-colors"
+                              title="Save to Link Shelf"
+                            >
+                              <BookmarkPlus size={12} /> Save Link
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(item.url)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 hover:bg-gray-100"
+                          >
+                            {copiedUrl === item.url ? (
+                              <span className="text-emerald-600 font-bold flex items-center gap-1">
+                                <Check size={11} /> Copied
+                              </span>
+                            ) : (
+                              <>
+                                <Copy size={11} /> Copy
+                              </>
+                            )}
+                          </button>
+                          <a
+                            href={item.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1 rounded-lg bg-[#114b43] px-3 py-1 text-xs font-bold text-white hover:bg-[#0c3630]"
+                          >
+                            Visit <ExternalLink size={11} />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* 3) Dates Section View */}
+            {activeSection === "dates" && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] flex items-center gap-1.5">
+                    <Calendar size={13} /> Actionable Dates & Deadlines
+                  </p>
+                  <span className="text-[11px] text-gray-400">
+                    {dates.length} {dates.length === 1 ? "date" : "dates"}
+                  </span>
+                </div>
+                {dates.length === 0 ? (
+                  <p className="text-xs text-gray-500 py-2">
+                    No dates mentioned in this reel. Click <strong>+ Add Date</strong> above to add one.
+                  </p>
+                ) : (
+                  <div className="space-y-2.5">
+                    {dates.map((item, idx) => (
+                      <div
+                        key={`${item.date}-${idx}`}
+                        className="rounded-xl bg-white border border-gray-200/80 p-3.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs"
+                      >
+                        <div>
+                          <p className="text-sm font-bold text-gray-900">{item.date}</p>
+                          <p className="text-xs font-semibold text-[#114b43] mt-0.5">{item.label}</p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          {item.url && (
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-1 rounded-lg bg-blue-50 border border-blue-200 px-2.5 py-1 text-xs font-bold text-blue-700 hover:bg-blue-100"
+                            >
+                              🔗 Register
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleExportCalendar(item)}
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-semibold text-gray-700 hover:bg-gray-100"
+                          >
+                            <CalendarPlus size={12} /> Add to Calendar
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </article>
+  );
 }
 
 
-function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete }) {
-  const [openId, setOpenId] = useState(null);
+function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete, focusReelId }) {
+  const [openId, setOpenId] = useState(focusReelId || null);
   const [topicInputs, setTopicInputs] = useState({});
+
+  useEffect(() => {
+    if (focusReelId) {
+      setOpenId(focusReelId);
+    }
+  }, [focusReelId]);
 
   const handleTopicChange = (reelId, val) => {
     setTopicInputs((prev) => ({ ...prev, [reelId]: val }));
@@ -207,7 +1235,12 @@ function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete 
             return (
               <article
                 key={reel.reel_id}
-                className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm"
+                id={`deep-fridge-reel-${reel.reel_id}`}
+                className={`rounded-2xl border bg-white p-5 shadow-sm transition-all ${
+                  focusReelId === reel.reel_id
+                    ? "border-[#114b43] ring-2 ring-[#114b43]/30"
+                    : "border-gray-100"
+                }`}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div>
@@ -310,30 +1343,33 @@ function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete 
                   )}
                 </div>
 
-                {/* Spoken Transcript */}
-                <div className="mt-4">
-                  <StructuredTranscript text={text} expanded={expanded} />
+                {/* Original Transcribe Section */}
+                <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/80 p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] flex items-center gap-1.5">
+                      <FileText size={13} /> Original Transcribe
+                    </p>
+                    <span className="text-[10px] font-bold uppercase text-gray-400">
+                      Spoken Audio Transcript
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-800 leading-relaxed whitespace-pre-wrap bg-white p-3.5 rounded-lg border border-gray-200/70 max-h-56 overflow-y-auto">
+                    {reel.transcript || reel.caption || "No original transcript available."}
+                  </p>
                 </div>
-                {text.length > 180 && (
-                  <button
-                    type="button"
-                    onClick={() => setOpenId(expanded ? null : reel.reel_id)}
-                    className="mt-2 text-xs font-bold uppercase tracking-widest text-[#114b43] hover:underline"
-                  >
-                    {expanded ? "Show less" : "Show more"}
-                  </button>
-                )}
 
                 {/* Primary Action Buttons */}
-                <div className="mt-5 flex flex-wrap items-center gap-4 pt-3 border-t border-gray-100">
-                  <a
-                    href={reel.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-blue-600 underline underline-offset-4"
+                <div className="mt-5 flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Does nothing for current time as requested
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3.5 py-2 text-xs font-bold uppercase tracking-widest text-emerald-800 hover:bg-emerald-100 transition-colors shadow-2xs"
+                    title="Verify reel truth (does nothing currently)"
                   >
-                    <ExternalLink size={13} /> Open original
-                  </a>
+                    <CheckCircle2 size={15} className="text-emerald-600" /> Verify True
+                  </button>
                   <button
                     type="button"
                     onClick={() => onResearch(reel, customTopic || null)}
@@ -343,6 +1379,14 @@ function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete 
                     <Sparkles size={14} />
                     {researching ? "Verifying Truth via Gemini…" : "Search Truth & Verify (Gemini AI)"}
                   </button>
+                  <a
+                    href={reel.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-blue-600 underline underline-offset-4"
+                  >
+                    <ExternalLink size={13} /> Open original
+                  </a>
                   <a
                     href={`https://www.google.com/search?q=${encodeURIComponent(
                       `${reel.title} official source registration`
@@ -711,13 +1755,31 @@ const DEMO_LINKS = [
   }
 ];
 
-function LinkShelf() {
+function LinkShelf({ links = [], dates = [], onDeleteLink, onDeleteDate }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState("All Sources");
   
-  const sources = ["All Sources", ...new Set(DEMO_LINKS.map(link => link.name))];
+  const displayItems = links.length > 0
+    ? links.map((l) => {
+        let domain = "Web Link";
+        try {
+          domain = new URL(l.url).hostname.replace(/^www\./, "");
+        } catch {}
+        return {
+          id: l.id,
+          reelId: l.reel_id,
+          title: l.label || "Saved Resource",
+          name: domain,
+          url: l.url,
+          savedDate: formatDate(l.created_at || new Date()),
+          isReal: true,
+        };
+      })
+    : DEMO_LINKS.map((l) => ({ ...l, isReal: false }));
 
-  const filteredLinks = DEMO_LINKS.filter(link => {
+  const sources = ["All Sources", ...new Set(displayItems.map((link) => link.name))];
+
+  const filteredLinks = displayItems.filter((link) => {
     const q = searchQuery.toLowerCase();
     const matchesSearch = 
       link.title.toLowerCase().includes(q) ||
@@ -739,7 +1801,7 @@ function LinkShelf() {
           LINK SHELF
         </h2>
         <p className="mt-2 font-medium text-gray-600">
-          All the useful links you've saved from your reels, in one place.
+          All actionable resources, links, and portals extracted or saved from your reels.
         </p>
       </div>
 
@@ -748,7 +1810,7 @@ function LinkShelf() {
           <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
           <input
             type="text"
-            placeholder="Search saved links..."
+            placeholder="Search saved resources and links..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-sm font-medium text-gray-800 placeholder-gray-400 focus:border-[#114b43] focus:outline-none focus:ring-1 focus:ring-[#114b43]"
@@ -759,24 +1821,33 @@ function LinkShelf() {
           onChange={(e) => setSourceFilter(e.target.value)}
           className="rounded-xl border border-gray-200 bg-white py-3 px-4 text-sm font-medium text-gray-800 focus:border-[#114b43] focus:outline-none focus:ring-1 focus:ring-[#114b43]"
         >
-          {sources.map(source => (
+          {sources.map((source) => (
             <option key={source} value={source}>{source}</option>
           ))}
         </select>
       </div>
 
       {filteredLinks.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500 flex flex-col items-center text-center">
-          <p>No saved links match your search.</p>
+        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-sm text-gray-500 flex flex-col items-center text-center">
+          <BookmarkCheck size={28} className="text-gray-300 mb-2" />
+          <p className="font-semibold text-gray-700">No resources on your shelf yet.</p>
+          <p className="mt-1 text-gray-400">
+            Resources and registration links extracted from your reels will automatically appear here.
+          </p>
         </div>
       ) : (
         <div className="space-y-4">
           {filteredLinks.map((link) => (
-            <article key={link.id} className="bg-white rounded-[1.5rem] border border-gray-100 p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <article key={`${link.id}-${link.url}`} className="bg-white rounded-[1.5rem] border border-gray-100 p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] mb-1">
-                  {link.name}
-                </p>
+                <div className="flex items-center gap-2 mb-1">
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-[#114b43]">
+                    {link.name}
+                  </span>
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.2 text-[9px] font-bold text-emerald-800">
+                    <BookmarkCheck size={10} className="text-emerald-600" /> Shelf
+                  </span>
+                </div>
                 <h3 className="text-lg font-bold text-[#1a1a1a] truncate mb-2">
                   {link.title}
                 </h3>
@@ -791,15 +1862,25 @@ function LinkShelf() {
                 </p>
               </div>
               
-              <div className="shrink-0">
+              <div className="flex items-center gap-2.5 shrink-0">
                 <a
                   href={link.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 rounded-full bg-[#114b43] px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-[#0c3630] transition-colors whitespace-nowrap"
+                  className="inline-flex items-center gap-2 rounded-xl bg-[#114b43] px-4 py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-[#0c3630] transition-colors whitespace-nowrap shadow-xs"
                 >
                   OPEN LINK <ExternalLink size={14} />
                 </a>
+                {link.isReal && onDeleteLink && (
+                  <button
+                    type="button"
+                    onClick={() => onDeleteLink(link.id)}
+                    className="p-2.5 rounded-xl border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors"
+                    title="Remove from Shelf"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                )}
               </div>
             </article>
           ))}
@@ -1085,10 +2166,59 @@ export default function Vault() {
   const handleSaveLink = async (reel, source) => {
     const url = sourceHref(source.url || (/^[\w.-]+\.[a-z]{2,}(?:\/\S*)?$/i.test(source.name) ? source.name : null));
     if (!url) return;
-    try { const saved = await api.saveLink(reel.reel_id, { label: source.name, url }); setSavedLinks((current) => current.some((item) => item.id === saved.id) ? current : [saved, ...current]); } catch (error) { setLoadError(error instanceof ApiError ? error.message : "Could not save this link."); }
+    try {
+      const label = source.label || source.name || reel.title || "Saved Resource";
+      const saved = await api.saveLink(reel.reel_id, { label, url });
+      setSavedLinks((current) =>
+        current.some((item) => item.id === saved.id || item.url?.toLowerCase() === url.toLowerCase())
+          ? current
+          : [saved, ...current]
+      );
+    } catch (error) {
+      setLoadError(error instanceof ApiError ? error.message : "Could not save this link.");
+    }
   };
+
+  // Requirement 8: Automatic Shelf Integration for all extracted resources
+  useEffect(() => {
+    if (!reels.length) return;
+    const syncResourcesToShelf = async () => {
+      for (const reel of reels) {
+        const { resources } = getExtractedData(reel);
+        for (const res of resources) {
+          if (res.url) {
+            const alreadySaved = savedLinks.some(
+              (item) => item.url?.toLowerCase() === res.url.toLowerCase()
+            );
+            if (!alreadySaved) {
+              try {
+                const saved = await api.saveLink(reel.reel_id, {
+                  label: res.label || reel.title,
+                  url: res.url,
+                });
+                setSavedLinks((current) =>
+                  current.some((item) => item.url?.toLowerCase() === res.url.toLowerCase())
+                    ? current
+                    : [saved, ...current]
+                );
+              } catch {
+                // Silently continue for background shelf auto-sync
+              }
+            }
+          }
+        }
+      }
+    };
+    syncResourcesToShelf();
+  }, [reels]);
+
   const handleSaveDate = async (reel, payload) => {
-    try { const saved = await api.saveDate(reel.reel_id, payload); setSavedDates((current) => current.some((item) => item.id === saved.id) ? current : [...current, saved]); } catch (error) { setLoadError(error instanceof ApiError ? error.message : "Could not save this date."); }
+    try {
+      const saved = await api.saveDate(reel.reel_id, payload);
+      setSavedDates((current) => (current.some((item) => item.id === saved.id) ? current : [...current, saved]));
+    } catch (error) {
+      setLoadError(error instanceof ApiError ? error.message : "Could not save this date.");
+    }
   };
   const handleSaveToLinkVault = async (reel, sources, topics) => {
     try {
@@ -1120,20 +2250,28 @@ export default function Vault() {
     }, 100);
   };
 
-  return (
-    <div className="w-full pb-10">
-      <header className="mb-8">
-        <h1 className="font-display text-4xl sm:text-5xl tracking-wide text-[#1a1a1a] uppercase mb-3">
-          YOUR VAULT
-        </h1>
-        <p className="text-gray-600 font-medium text-lg">
-          Every reel you saved, with its real title and full transcript.
-        </p>
-      </header>
+  const [deepFridgeFocusId, setDeepFridgeFocusId] = useState(null);
 
+  const handleAnalyze = (reel) => {
+    setActiveTab("research");
+    setDeepFridgeFocusId(reel.reel_id);
+    setTimeout(() => {
+      const element = document.getElementById(`deep-fridge-reel-${reel.reel_id}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('ring-4', 'ring-[#114b43]/30', 'transition-all', 'duration-500');
+        setTimeout(() => {
+          element.classList.remove('ring-4', 'ring-[#114b43]/30');
+        }, 2500);
+      }
+    }, 120);
+  };
+
+  return (
+    <div className="w-full pb-10 pt-2">
       <div role="tablist" aria-label="Vault sections" className="mb-7 inline-flex max-w-full overflow-x-auto rounded-xl bg-[#F5F3E9] p-1 gap-1">
         <button type="button" role="tab" aria-selected={activeTab === "vault"} onClick={() => setActiveTab("vault")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "vault" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><Bookmark size={14} /> Vault</button>
-        <button type="button" role="tab" aria-selected={activeTab === "research"} onClick={() => setActiveTab("research")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "research" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><List size={14} /> Deep Fridge</button>
+        <button type="button" role="tab" aria-selected={activeTab === "research"} onClick={() => setActiveTab("research")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "research" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><List size={14} /> Verify</button>
         <button type="button" role="tab" aria-selected={activeTab === "shelf"} onClick={() => setActiveTab("shelf")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "shelf" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><Link2 size={14} /> Link Shelf</button>
         <button type="button" role="tab" aria-selected={activeTab === "calendar"} onClick={() => setActiveTab("calendar")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "calendar" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><CalendarDays size={14} /> Calendar</button>
       </div>
@@ -1144,7 +2282,7 @@ export default function Vault() {
         </div>
       )}
 
-      {activeTab === "research" ? <DeepFridgePage reels={reels} researchByReel={researchByReel} language={language} onResearch={handleResearch} onDelete={handleDelete} /> : activeTab === "shelf" ? <LinkShelf links={savedLinks} dates={savedDates} onDeleteLink={handleDeleteLink} onDeleteDate={handleDeleteDate} /> : activeTab === "calendar" ? (
+      {activeTab === "research" ? <DeepFridgePage reels={reels} researchByReel={researchByReel} language={language} onResearch={handleResearch} onDelete={handleDelete} focusReelId={deepFridgeFocusId} /> : activeTab === "shelf" ? <LinkShelf links={savedLinks} dates={savedDates} onDeleteLink={handleDeleteLink} onDeleteDate={handleDeleteDate} /> : activeTab === "calendar" ? (
         <section className="pt-2">
           <div className="mb-6">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">
@@ -1265,87 +2403,21 @@ export default function Vault() {
               No reels match that search.
             </p>
           ) : (
-            <div className="space-y-4">
-              {displayReels.map((reel) => {
-                const body = displayContent(reel, language);
-                const chunks = transcriptChunks(body);
-                const expanded = openId === reel.reel_id;
-                const canExpand = body.length > 180 || chunks.length > 1;
-                return (
-                  <article
-                    key={reel.reel_id}
-                    id={`vault-reel-${reel.reel_id}`}
-                    className="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm"
-                  >
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <div>
-                        <div className="flex flex-wrap items-center gap-3 mb-2">
-                          <div className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
-                            {reel.platform}
-                            {reel.author ? ` · ${reel.author}` : ""}
-                          </div>
-                          {isForYouActive && reelScores[reel.reel_id]?.score > 0 && (
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="bg-[#114b43] text-[#d4f954] px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider flex items-center gap-1 shadow-sm">
-                                <Sparkles size={10} /> {reelScores[reel.reel_id].score}% Match
-                              </span>
-                              {reelScores[reel.reel_id].reasons?.length > 0 && (
-                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest hidden sm:inline">
-                                  Matches: {reelScores[reel.reel_id].reasons.join(" • ")}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <h3 className="text-[#1a1a1a] font-bold text-xl leading-snug">
-                          {reel.title}
-                        </h3>
-                        <p className="mt-2 flex items-center gap-1.5 text-xs font-medium text-gray-500">
-                          <CalendarDays size={14} /> Saved{" "}
-                          {formatDate(reel.created_at)}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(reel.reel_id)}
-                        className="text-gray-300 hover:text-red-500 p-1"
-                        title="Remove from vault"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                    {reel.analysis_error && (
-                      <p
-                        role="alert"
-                        className="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm leading-5 text-amber-900"
-                      >
-                        <strong>Reel saved.</strong> {reel.analysis_error}
-                      </p>
-                    )}
-                    <ReelAnalysisPanel reel={reel} onSaveLink={handleSaveLink} onSaveDate={handleSaveDate} onSaveToLinkVault={handleSaveToLinkVault} savedLinks={savedLinks} savedDates={savedDates} linkVaultEntries={linkVaultEntries} />
-                    <StructuredTranscript text={body} expanded={expanded} />
-                    {canExpand && (
-                      <button
-                        type="button"
-                        onClick={() => setOpenId(expanded ? null : reel.reel_id)}
-                        className="mt-4 text-xs font-bold uppercase tracking-widest text-[#114b43] hover:underline"
-                      >
-                        {expanded ? "Show less" : "Show more"}
-                      </button>
-                    )}
-                    <div className="mt-4 flex flex-wrap items-center gap-4">
-                      <a
-                        href={reel.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-blue-600 underline underline-offset-4 hover:text-blue-800"
-                      >
-                        Open original <ExternalLink size={13} />
-                      </a>
-                    </div>
-                  </article>
-                );
-              })}
+            <div className="space-y-6">
+              {displayReels.map((reel) => (
+                <ExtractionResultCard
+                  key={reel.reel_id}
+                  reel={reel}
+                  onSaveLink={handleSaveLink}
+                  onSaveDate={handleSaveDate}
+                  onDelete={handleDelete}
+                  onAnalyze={handleAnalyze}
+                  savedLinks={savedLinks}
+                  savedDates={savedDates}
+                  isForYouActive={isForYouActive}
+                  reelScore={reelScores[reel.reel_id]}
+                />
+              ))}
             </div>
           )}
         </div>

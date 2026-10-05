@@ -44,7 +44,7 @@ const INITIAL_REELS = [
     created_at: '2026-10-04T10:30:00Z',
     cached: true,
     analysis: {
-      summary: 'Non-dilutive $100,000 global grant program for AI developers and students with finals in San Francisco.',
+      summary: 'Non-dilutive **$100,000** global grant program for **AI** developers and students with pitch finals in **San Francisco**.',
       english_transcript: 'Applications are now open for the AI Founders Global Grant 2026. Up to 100,000 dollars in non-dilutive equity-free funding for students and early-stage engineers building AI products. The application deadline is November 15, 2026. Register at https://aifoundersgrant.org and submit your demo project. Selected teams will be invited to San Francisco for the pitch finals on December 10, 2026.',
       summary_points: [
         'Equity-free grant of up to $100,000 for student and indie AI developers.',
@@ -56,6 +56,26 @@ const INITIAL_REELS = [
         { name: 'AI Founders Grant Official', url: 'https://aifoundersgrant.org' },
         { name: 'Application Guidelines & Portal', url: 'https://aifoundersgrant.org/apply' }
       ],
+      resources: [
+        { label: 'Application Portal', url: 'https://aifoundersgrant.org/apply' },
+        { label: 'Official Website', url: 'https://aifoundersgrant.org' }
+      ],
+      links: [
+        'https://aifoundersgrant.org',
+        'https://aifoundersgrant.org/apply'
+      ],
+      extracted_dates: [
+        { label: 'Application Deadline', date: 'November 15, 2026', iso_date: '2026-11-15', url: 'https://aifoundersgrant.org/apply' },
+        { label: 'Pitch Finals in San Francisco', date: 'December 10, 2026', iso_date: '2026-12-10' }
+      ],
+      explore: {
+        prize_pool: '$100,000',
+        organizer: 'AI Founders',
+        eligibility: 'Students & Early-Stage Engineers',
+        location: 'San Francisco (Finals)',
+        category: 'Grant & Hackathon',
+        benefits: 'Equity-free non-dilutive funding, mentorship, SF travel'
+      },
       details: {
         dates: ['2026-11-15', '2026-12-10'],
         books: [],
@@ -76,7 +96,7 @@ const INITIAL_REELS = [
     created_at: '2026-10-05T08:00:00Z',
     cached: true,
     analysis: {
-      summary: 'Global fellowship and stipend program for students contributing to open-source software with 150+ organizations.',
+      summary: '**Google** Summer of Code offers stipends for students contributing to open source. **Registration** opens **October 20, 2026** with **Deadline** on **December 1, 2026**.',
       english_transcript: 'GSoC open source contributor stipends have been updated for 2026! Over 150 open source organizations are accepting student proposals. Key registration starts October 20, 2026 with final contributor applications closing December 1, 2026. Check the mentor list on summerofcode.withgoogle.com and review past editions on github.com.',
       summary_points: [
         'Stipend funded open-source contribution under participating tech mentors.',
@@ -86,8 +106,31 @@ const INITIAL_REELS = [
       tags: ['internship', 'open_source', 'google', 'mentorship'],
       sources: [
         { name: 'Google Summer of Code Portal', url: 'https://summerofcode.withgoogle.com' },
-        { name: 'GSoC Organization Guide', url: 'https://summerofcode.withgoogle.com/organizations' }
+        { name: 'GSoC Organization Guide', url: 'https://summerofcode.withgoogle.com/organizations' },
+        { name: 'GitHub Repositories', url: 'https://github.com' }
       ],
+      resources: [
+        { label: 'Registration & Portal', url: 'https://summerofcode.withgoogle.com' },
+        { label: 'Organization Guide', url: 'https://summerofcode.withgoogle.com/organizations' },
+        { label: 'GitHub Repositories', url: 'https://github.com' }
+      ],
+      links: [
+        'https://summerofcode.withgoogle.com',
+        'https://summerofcode.withgoogle.com/organizations',
+        'https://github.com'
+      ],
+      extracted_dates: [
+        { label: 'Registration Opens', date: 'October 20, 2026', iso_date: '2026-10-20', url: 'https://summerofcode.withgoogle.com' },
+        { label: 'Application Deadline', date: 'December 1, 2026', iso_date: '2026-12-01', url: 'https://summerofcode.withgoogle.com' }
+      ],
+      explore: {
+        prize_pool: 'Contributor Stipend',
+        organizer: 'Google',
+        eligibility: 'Students & Open-Source Contributors',
+        location: 'Online',
+        category: 'Internship & Mentorship',
+        benefits: 'Monthly stipend, direct industry mentorship, certificate'
+      },
       details: {
         dates: ['2026-10-20', '2026-12-01'],
         books: ['The Cathedral and the Bazaar'],
@@ -108,7 +151,7 @@ const INITIAL_REELS = [
     created_at: '2026-10-02T14:15:00Z',
     cached: true,
     analysis: {
-      summary: 'Full tuition support plus research stipend for undergraduate STEM students with Nov 30 deadline.',
+      summary: 'Full tuition **Scholarship** plus research **Stipend** for undergraduate STEM students. **Eligibility** requires minimum 3.2 GPA with **Deadline** on **November 30, 2026**.',
       english_transcript: 'Undergraduate and high school seniors: full tuition grant plus monthly research allowance for STEM degrees. Minimum GPA 3.2. Applications open online until November 30, 2026.',
       summary_points: [
         'Full tuition scholarship with monthly stipend for STEM degrees.',
@@ -119,11 +162,82 @@ const INITIAL_REELS = [
       sources: [
         { name: 'STEM Scholarship Foundation', url: 'https://stemleadersfund.org' }
       ],
+      resources: [
+        { label: 'Scholarship Application', url: 'https://stemleadersfund.org' }
+      ],
+      links: [
+        'https://stemleadersfund.org'
+      ],
+      extracted_dates: [
+        { label: 'Submission Deadline', date: 'November 30, 2026', iso_date: '2026-11-30', url: 'https://stemleadersfund.org' }
+      ],
+      explore: {
+        prize_pool: 'Full Tuition Grant + Allowance',
+        organizer: 'STEM Scholarship Foundation',
+        eligibility: 'Undergraduate & High School Seniors (GPA 3.2+)',
+        location: 'Online',
+        category: 'Scholarship',
+        benefits: '100% Tuition coverage, research monthly grant'
+      },
       details: {
         dates: ['2026-11-30'],
         books: [],
         people: [],
         competitions: []
+      }
+    }
+  },
+  {
+    reel_id: 4,
+    platform: 'instagram',
+    url: 'https://www.instagram.com/reel/amazonhackathon2026/',
+    title: 'Amazon Alexa & Cloud AI Hackathon 2026',
+    author: 'amazon_devs',
+    transcript_status: 'verified',
+    transcript: 'Amazon is conducting a hackathon. Register at example.com/register before October 15. Total prize pool is ₹5,00,000 for winning developers and students, along with direct interview and internship opportunities. Official rules and documentation are hosted on amazon.com and github.com/amazon-hackathon.',
+    caption: 'Big Amazon Hackathon alert! ₹5,00,000 Prize Pool. Register now! #hackathon #amazon #coding',
+    created_at: '2026-10-05T09:00:00Z',
+    cached: true,
+    analysis: {
+      summary: '**Amazon** is conducting a **Hackathon**. **Register** at example.com/register before **October 15, 2026** with a **Prize Pool** of **₹5,00,000** and direct **Internship** opportunities.',
+      english_transcript: 'Amazon is conducting a hackathon. Register at example.com/register before October 15. Total prize pool is ₹5,00,000 for winning developers and students, along with direct interview and internship opportunities. Official rules and documentation are hosted on amazon.com and github.com/amazon-hackathon.',
+      summary_points: [
+        'Amazon is hosting a developer & student hackathon.',
+        'Prize pool of ₹5,00,000 with interview and internship opportunities.',
+        'Registration deadline is October 15, 2026 at example.com/register.'
+      ],
+      tags: ['hackathon', 'amazon', 'internship', 'developer', 'coding'],
+      sources: [
+        { name: 'Amazon Developer Portal', url: 'https://amazon.com' },
+        { name: 'Hackathon Registration Form', url: 'https://example.com/register' },
+        { name: 'GitHub Starter Kit', url: 'https://github.com/amazon-hackathon' }
+      ],
+      resources: [
+        { label: 'Registration Portal', url: 'https://example.com/register' },
+        { label: 'Official Website', url: 'https://amazon.com' },
+        { label: 'GitHub Repository', url: 'https://github.com/amazon-hackathon' }
+      ],
+      links: [
+        'https://example.com/register',
+        'https://amazon.com',
+        'https://github.com/amazon-hackathon'
+      ],
+      extracted_dates: [
+        { label: 'Registration Deadline', date: 'October 15, 2026', iso_date: '2026-10-15', url: 'https://example.com/register' }
+      ],
+      explore: {
+        prize_pool: '₹5,00,000',
+        organizer: 'Amazon',
+        eligibility: 'Students / Developers',
+        location: 'Online',
+        category: 'Hackathon',
+        benefits: 'Internship opportunities, certificates, ₹5,00,000 prize pool'
+      },
+      details: {
+        dates: ['2026-10-15'],
+        books: [],
+        people: [],
+        competitions: ['Amazon Cloud AI Hackathon 2026']
       }
     }
   }
@@ -263,6 +377,8 @@ export const mockStore = {
     const now = new Date().toISOString();
     const targetDate = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
 
+    const portalUrl = `https://opportunity-${newId}.org`;
+    const regUrl = `https://opportunity-${newId}.org/apply`;
     const newReel = {
       reel_id: newId,
       platform,
@@ -270,13 +386,13 @@ export const mockStore = {
       title: `Saved ${platform.charAt(0).toUpperCase() + platform.slice(1)} Opportunity #${newId}`,
       author: 'creator_' + Math.random().toString(36).substring(2, 7),
       transcript_status: 'verified',
-      transcript: `Official announcement: registration is officially open for candidate participation until ${targetDate}. Verified eligibility and criteria apply.`,
-      caption: `New ${platform} alert! Deadline: ${targetDate}. Check the official website.`,
+      transcript: `Official announcement: registration is officially open for candidate participation until ${targetDate}. Verified eligibility and criteria apply. Apply at ${regUrl}.`,
+      caption: `New ${platform} alert! Deadline: ${targetDate}. Check the official website at ${portalUrl}.`,
       created_at: now,
       cached: false,
       analysis: {
-        summary: `Verified opportunity with active deadline on ${targetDate}. Direct applications open online.`,
-        english_transcript: `Official announcement: registration is officially open for candidate participation until ${targetDate}. Verified eligibility and criteria apply.`,
+        summary: `Verified opportunity with active **Deadline** on **${targetDate}**. Direct **Registration** is open online.`,
+        english_transcript: `Official announcement: registration is officially open for candidate participation until ${targetDate}. Verified eligibility and criteria apply. Apply at ${regUrl}.`,
         summary_points: [
           'Direct applications open online with no registration fee.',
           `Official deadline specified for ${targetDate}.`,
@@ -284,8 +400,28 @@ export const mockStore = {
         ],
         tags: ['opportunity', 'internship', 'application'],
         sources: [
-          { name: 'Official Announcement Portal', url: 'https://opportunity-verified.org' }
+          { name: 'Official Announcement Portal', url: portalUrl },
+          { name: 'Registration Form', url: regUrl }
         ],
+        resources: [
+          { label: 'Registration', url: regUrl },
+          { label: 'Official Website', url: portalUrl }
+        ],
+        links: [
+          regUrl,
+          portalUrl
+        ],
+        extracted_dates: [
+          { label: 'Registration Deadline', date: targetDate, iso_date: targetDate, url: regUrl }
+        ],
+        explore: {
+          prize_pool: 'Participation Certificate & Mentorship',
+          organizer: `Opportunity Program #${newId}`,
+          eligibility: 'Open to eligible candidates',
+          location: 'Online',
+          category: 'Opportunity',
+          benefits: 'Certification, industry mentorship, verified credentials'
+        },
         details: {
           dates: [targetDate],
           books: [],
@@ -403,12 +539,15 @@ export const mockStore = {
 
   saveLink(reelId, body) {
     const links = this.getSavedLinks();
+    const cleanUrl = (body.url || '').trim();
+    const existing = links.find((l) => l.url?.toLowerCase() === cleanUrl.toLowerCase());
+    if (existing) return existing;
     const newId = links.length > 0 ? Math.max(...links.map((l) => l.id)) + 1 : 1;
     const newLink = {
       id: newId,
       reel_id: Number(reelId),
       label: body.label || 'Saved link',
-      url: body.url,
+      url: cleanUrl,
       created_at: new Date().toISOString()
     };
     const updated = [newLink, ...links];
@@ -429,12 +568,17 @@ export const mockStore = {
 
   saveDate(reelId, body) {
     const dates = this.getSavedDates();
+    const existing = dates.find(
+      (d) => Number(d.reel_id) === Number(reelId) && d.event_date === body.event_date && d.label === body.label
+    );
+    if (existing) return existing;
     const newId = dates.length > 0 ? Math.max(...dates.map((d) => d.id)) + 1 : 1;
     const newDate = {
       id: newId,
       reel_id: Number(reelId),
       label: body.label || 'Important date',
       event_date: body.event_date,
+      url: body.url || null,
       created_at: new Date().toISOString()
     };
     const updated = [newDate, ...dates];
