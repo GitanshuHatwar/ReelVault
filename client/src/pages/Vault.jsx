@@ -680,8 +680,133 @@ function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete 
   );
 }
 
-function LinkShelf({ entries, links, dates, onDeleteEntry, onDeleteLink, onDeleteDate }) {
-  return <section className="pt-2"><div className="mb-6"><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">Link Vault</p><h2 className="font-display text-3xl tracking-wide uppercase text-[#1a1a1a] mt-1">SAVED RESOURCES & DATES</h2><p className="mt-2 font-medium text-gray-600">Keep each reel's sources, follow-up topics and deadlines together.</p></div><section className="mb-6 rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center gap-2 text-[#114b43]"><BookmarkPlus size={17} /><h3 className="text-xs font-bold uppercase tracking-widest">Reel entries</h3></div>{entries.length === 0 ? <p className="text-sm text-gray-500">Use Add to Link Vault on a reel to save its links and related topics.</p> : <div className="grid gap-4 md:grid-cols-2">{entries.map((entry) => <article key={entry.id} className="rounded-xl bg-[#F5F3E9] p-4"><div className="flex items-start justify-between gap-3"><h4 className="text-sm font-bold text-gray-800">{entry.title}</h4><button type="button" onClick={() => onDeleteEntry(entry.id)} className="shrink-0 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500">Remove</button></div>{entry.links?.length > 0 && <div className="mt-3 space-y-1">{entry.links.map((link) => <a key={`${link.name}-${link.url}`} href={sourceHref(link.url)} target="_blank" rel="noreferrer" className="block truncate text-sm text-blue-600 underline underline-offset-2">{link.name}</a>)}</div>}{entry.topics?.length > 0 && <div className="mt-3 flex flex-wrap gap-1.5">{entry.topics.map((topic) => <a key={topic} href={`https://www.google.com/search?q=${encodeURIComponent(topic)}`} target="_blank" rel="noreferrer" className="rounded-full bg-white px-2 py-1 text-[10px] font-bold text-[#114b43]">{topic}</a>)}</div>}</article>)}</div>}</section><div className="grid gap-6 lg:grid-cols-2"><section className="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center gap-2 text-[#114b43]"><Link2 size={17} /><h3 className="text-xs font-bold uppercase tracking-widest">Individual links</h3></div>{links.length === 0 ? <p className="text-sm text-gray-500">Save an individual source from a reel.</p> : <div className="space-y-3">{links.map((link) => <div key={link.id} className="flex items-start justify-between gap-3 rounded-xl bg-[#F5F3E9] p-3"><div className="min-w-0"><p className="text-sm font-bold text-gray-800">{link.label}</p><a href={link.url} target="_blank" rel="noreferrer" className="block truncate text-sm text-blue-600 underline underline-offset-2">{link.url}</a></div><button type="button" onClick={() => onDeleteLink(link.id)} className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500">Remove</button></div>)}</div>}</section><section className="rounded-[1.5rem] border border-gray-100 bg-white p-6 shadow-sm"><div className="mb-4 flex items-center gap-2 text-[#114b43]"><CalendarDays size={17} /><h3 className="text-xs font-bold uppercase tracking-widest">Important dates</h3></div>{dates.length === 0 ? <p className="text-sm text-gray-500">Save a detected or manual date from a Vault reel.</p> : <div className="space-y-3">{dates.map((item) => <div key={item.id} className="flex items-start justify-between gap-3 rounded-xl bg-[#F5F3E9] p-3"><div><p className="text-sm font-bold text-gray-800">{item.label}</p><p className="mt-1 text-sm text-[#114b43]">{formatDate(`${item.event_date}T00:00:00`)}</p></div><button type="button" onClick={() => onDeleteDate(item.id)} className="text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500">Remove</button></div>)}</div>}</section></div></section>;
+const DEMO_LINKS = [
+  {
+    id: 1,
+    title: "Odoo Hackathon 2026",
+    name: "Odoo",
+    url: "https://www.odoo.com/",
+    savedDate: "Oct 5, 2026"
+  },
+  {
+    id: 2,
+    title: "NVIDIA AI Hackathon",
+    name: "NVIDIA",
+    url: "https://www.nvidia.com/",
+    savedDate: "Oct 4, 2026"
+  },
+  {
+    id: 3,
+    title: "Google Summer of Code",
+    name: "Google",
+    url: "https://summerofcode.withgoogle.com/",
+    savedDate: "Oct 2, 2026"
+  },
+  {
+    id: 4,
+    title: "Microsoft Student Opportunities",
+    name: "Microsoft",
+    url: "https://www.microsoft.com/",
+    savedDate: "Sep 30, 2026"
+  }
+];
+
+function LinkShelf() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sourceFilter, setSourceFilter] = useState("All Sources");
+  
+  const sources = ["All Sources", ...new Set(DEMO_LINKS.map(link => link.name))];
+
+  const filteredLinks = DEMO_LINKS.filter(link => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch = 
+      link.title.toLowerCase().includes(q) ||
+      link.name.toLowerCase().includes(q) ||
+      link.url.toLowerCase().includes(q);
+      
+    const matchesSource = sourceFilter === "All Sources" || link.name === sourceFilter;
+    
+    return matchesSearch && matchesSource;
+  });
+
+  return (
+    <section className="pt-2">
+      <div className="mb-6">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">
+          Link Shelf
+        </p>
+        <h2 className="font-display text-3xl tracking-wide uppercase text-[#1a1a1a] mt-1">
+          LINK SHELF
+        </h2>
+        <p className="mt-2 font-medium text-gray-600">
+          All the useful links you've saved from your reels, in one place.
+        </p>
+      </div>
+
+      <div className="mb-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+        <div className="relative flex-1">
+          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search saved links..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 bg-white py-3 pl-11 pr-4 text-sm font-medium text-gray-800 placeholder-gray-400 focus:border-[#114b43] focus:outline-none focus:ring-1 focus:ring-[#114b43]"
+          />
+        </div>
+        <select
+          value={sourceFilter}
+          onChange={(e) => setSourceFilter(e.target.value)}
+          className="rounded-xl border border-gray-200 bg-white py-3 px-4 text-sm font-medium text-gray-800 focus:border-[#114b43] focus:outline-none focus:ring-1 focus:ring-[#114b43]"
+        >
+          {sources.map(source => (
+            <option key={source} value={source}>{source}</option>
+          ))}
+        </select>
+      </div>
+
+      {filteredLinks.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-6 text-sm text-gray-500 flex flex-col items-center text-center">
+          <p>No saved links match your search.</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredLinks.map((link) => (
+            <article key={link.id} className="bg-white rounded-[1.5rem] border border-gray-100 p-6 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] mb-1">
+                  {link.name}
+                </p>
+                <h3 className="text-lg font-bold text-[#1a1a1a] truncate mb-2">
+                  {link.title}
+                </h3>
+                <div className="flex items-center gap-2 text-sm text-gray-500 mb-2 truncate">
+                  <Link2 size={14} className="shrink-0" />
+                  <a href={link.url} target="_blank" rel="noopener noreferrer" className="truncate hover:text-blue-600 transition-colors">
+                    {link.url}
+                  </a>
+                </div>
+                <p className="text-xs font-semibold text-gray-400">
+                  Saved {link.savedDate}
+                </p>
+              </div>
+              
+              <div className="shrink-0">
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#114b43] px-5 py-2.5 text-xs font-bold uppercase tracking-widest text-white hover:bg-[#0c3630] transition-colors whitespace-nowrap"
+                >
+                  OPEN LINK <ExternalLink size={14} />
+                </a>
+              </div>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
 }
 
 const getPrimaryDeadline = (reel) => {
