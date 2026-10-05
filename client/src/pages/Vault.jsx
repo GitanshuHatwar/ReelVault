@@ -401,6 +401,23 @@ export default function Vault() {
   const handleDeleteDate = async (dateId) => { try { await api.deleteSavedDate(dateId); setSavedDates((current) => current.filter((item) => item.id !== dateId)); } catch (error) { setLoadError(error instanceof ApiError ? error.message : "Could not remove this date."); } };
   const handleDeleteLinkVault = async (entryId) => { try { await api.deleteLinkVault(entryId); setLinkVaultEntries((current) => current.filter((item) => item.id !== entryId)); } catch (error) { setLoadError(error instanceof ApiError ? error.message : "Could not remove this Link Vault entry."); } };
 
+  const handleViewOpportunity = (reelId) => {
+    setActiveTab("vault");
+    setSearchQuery("");
+    setSelectedDay("");
+    // Give react time to switch tab and render before scrolling
+    setTimeout(() => {
+      const element = document.getElementById(`vault-reel-${reelId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        element.classList.add('ring-4', 'ring-[#d4f954]', 'transition-all', 'duration-500');
+        setTimeout(() => {
+          element.classList.remove('ring-4', 'ring-[#d4f954]');
+        }, 2000);
+      }
+    }, 100);
+  };
+
   return (
     <div className="w-full pb-10">
       <header className="mb-8">
@@ -438,12 +455,13 @@ export default function Vault() {
               Track important dates and deadlines from your saved reels.
             </p>
           </div>
-          <div className="max-w-[400px]">
+          <div className="w-full">
             <SavedCalendar
               reels={reels}
               importantDates={savedDates}
               selectedKey={selectedDay}
               onSelect={setSelectedDay}
+              onViewOpportunity={handleViewOpportunity}
             />
           </div>
         </section>
@@ -506,6 +524,7 @@ export default function Vault() {
                 return (
                   <article
                     key={reel.reel_id}
+                    id={`vault-reel-${reel.reel_id}`}
                     className="bg-white rounded-[1.5rem] p-6 border border-gray-100 shadow-sm"
                   >
                     <div className="flex items-start justify-between gap-4 mb-3">
