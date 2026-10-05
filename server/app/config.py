@@ -1,7 +1,7 @@
 from functools import lru_cache
 from urllib.parse import urlsplit, urlunsplit
 
-from pydantic import field_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,18 +34,22 @@ class Settings(BaseSettings):
     socialkit_base_url: str = "https://api.socialkit.dev"
     tavily_api_key: str = ""
     gemini_api_key: str = ""
-
-    llm_model_fast: str = "gemini-3.8-flash"
-    llm_model_main: str = "gemini-3.8-flash"
-    # A save must never wait through the provider's exponential backoff. One
-    # request gives us a useful answer when Gemini is available and fails fast
-    # when the project has exhausted its quota.
-    llm_max_retries: int = 1
+    gemini_api_key_2: str = ""
+    gemini_api_key_3: str = ""
+    gemini_api_keys: list[str] | str = []
+    xai_api_key: str = Field(default="", validation_alias=AliasChoices("XAI_API_KEY", "GROK_API_KEY"))
+    grok_model: str = "grok-4-fast"
+    llm_model_fast: str = "gemini-3.5-flash-lite"
+    llm_model_main: str = "gemini-3.5-flash-lite"
+    # Fail fast per key so we can immediately rotate/fallback to the next
+    # configured key when a quota limit or rate limit is reached.
+    llm_max_retries: int = 0
 
     shallow_per_day: int = 50
     deep_per_day: int = 10
     verify_max_tool_calls: int = 6
     verify_timeout_s: int = 45
+    grok_timeout_s: int = 90
     research_max_tool_calls: int = 10
     research_timeout_s: int = 90
     stale_job_minutes: int = 15
@@ -64,6 +68,46 @@ class Settings(BaseSettings):
 
         # supabase-py appends service paths such as `/rest/v1` itself.
         return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))
+
+    def get_all_gemini_keys(self) -> list[str]:
+        keys: list[str] = []
+        if isinstance(self.gemini_api_keys, list):
+            for k in self.gemini_api_keys:
+                if isinstance(k, str) and k.strip():
+                    keys.append(k.strip())
+        elif isinstance(self.gemini_api_keys, str) and self.gemini_api_keys.strip():
+            for k in self.gemini_api_keys.split(","):
+                if k.strip():
+                    keys.append(k.strip())
+
+        for key_candidate in (self.gemini_api_key, self.gemini_api_key_2, self.gemini_api_key_3):
+            if key_candidate and key_candidate.strip():
+                for k in key_candidate.split(","):
+                    if k.strip():
+                        keys.append(k.strip())
+
+        import os
+
+        for env_k, env_v in os.environ.items():
+            if env_k.startswith("GEMINI_API_KEY") and env_v.strip():
+                for k in env_v.split(","):
+                    if k.strip():
+                        keys.append(k.strip())
+
+        seen: set[str] = set()
+        deduped: list[str] = []
+        for k in keys:
+            if k not in seen:
+                seen.add(k)
+                deduped.append(k)
+        return deduped
+
+    @model_validator(mode="after")
+    def _sync_primary_gemini_key(self) -> "Settings":
+        all_keys = self.get_all_gemini_keys()
+        if all_keys and not self.gemini_api_key:
+            self.gemini_api_key = all_keys[0]
+        return self
 
 
 @lru_cache

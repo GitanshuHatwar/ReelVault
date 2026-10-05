@@ -13,7 +13,7 @@ Create `server/.env` from `.env.example`. Four services:
 | `SUPABASE_SERVICE_ROLE_KEY` | same page (service_role) — **server only, never in a client** | Postgres reads/writes |
 | `SOCIALKIT_API_KEY` | [SocialKit](https://socialkit.dev) | Reel transcripts |
 | `TAVILY_API_KEY` | [Tavily](https://tavily.com) | Web search + page extract (deep cook) |
-| `GEMINI_API_KEY` | [Google AI Studio](https://aistudio.google.com/apikey) | Classify, extract, verify, research |
+| `GEMINI_API_KEY` (or `_2`, `_3`) | [Google AI Studio](https://aistudio.google.com/apikey) | Classify, extract, verify, research (supports multiple keys for rotation & failover) |
 
 ### One-time Supabase setup
 

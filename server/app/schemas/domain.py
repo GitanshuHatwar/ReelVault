@@ -78,6 +78,13 @@ class FieldCheck(BaseModel):
     official_value: str | None = None
 
 
+class ClaimCheck(BaseModel):
+    claim: str
+    status: Literal["verified", "unverified", "false", "misleading"]
+    evidence: str | None = None
+    source_url: str | None = None
+
+
 class VerdictDraft(BaseModel):
     verdict: Verdict
     official_urls: list[str] = Field(default_factory=list)
@@ -98,6 +105,8 @@ class VerificationResult(BaseModel):
     official_deadline: date | None
     scam_signals: list[str]
     guard_notes: list[str]
+    sources_verified: bool = False
+    claim_checks: list[ClaimCheck] = Field(default_factory=list)
 
 
 class Claim(BaseModel):

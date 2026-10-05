@@ -60,6 +60,8 @@ class DeepCookIn(BaseModel):
     transcript: str | None = None
     caption: str | None = None
     title: str | None = None
+    summary: str | None = None
+    summary_points: list[str] = Field(default_factory=list)
 
 
 class DeepCookOut(BaseModel):

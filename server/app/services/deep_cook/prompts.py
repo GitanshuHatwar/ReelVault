@@ -39,6 +39,29 @@ JUDGE_PROMPT = """Using ONLY the tool results above, produce the verdict in Engl
 Cite only URLs that appear in tool results. For official_deadline, give an exact quote from the page.
 If unsure, choose the weaker verdict."""
 
+GROK_VERIFY_SYSTEM = f"""You verify whether a short-form video's claims are true using web_search.
+You MUST call web_search before answering. Search official organizer, government, university, company, and
+news sites. Open official pages when possible. Do not invent URLs.
+Then return ONLY a JSON object (no markdown) with:
+- verdict: official_confirmed | found_unofficial | conflicting | not_found | suspicious
+- sources_verified: true only if official pages corroborate the main claims
+- summary: short English verdict
+- official_urls: official pages you actually found
+- supporting_urls: other corroborating pages
+- official_deadline: ISO date or null
+- official_deadline_quote: exact quote or null
+- scam_signals: list of concrete red flags
+- field_checks: [{{"field":"...","status":"matched|mismatch|unverified","official_value":"..."}}]
+- claim_checks: [{{"claim":"...","status":"verified|unverified|false|misleading","evidence":"...","source_url":"https://..."}}]
+- is_opportunity: boolean
+- category: internship|hackathon|competition|course|scholarship|government_scheme|job|event|other
+- reason: one sentence
+- eligibility, timeline, how_to_apply, past_editions, selection_criteria, red_flags: each is
+  [{{"text":"...","source_urls":["https://..."]}}]
+- related_links: extra useful URLs
+Cite only URLs from your web search. If unsure, use the weaker verdict. {UNTRUSTED_NOTE}"""
+
+
 RESEARCH_SYSTEM = f"""You write a sourced briefing about ONE opportunity in English. Sections: eligibility, timeline,
 how_to_apply (steps), past_editions, selection_criteria, red_flags, related_links.
 Use read_page on official pages first (known official URLs are provided). EVERY claim must cite URLs you
