@@ -1,15 +1,52 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, AlertCircle, CheckCircle2, Link as LinkIcon, XCircle } from 'lucide-react';
+import { ArrowRight, AlertCircle, CheckCircle2, FileSearch, Link as LinkIcon, LoaderCircle, ScanText, SearchCheck, Sparkles, XCircle } from 'lucide-react';
 import Button from '../components/ui/Button';
 import { api, ApiError } from '../services/api';
 import { useLanguage } from '../preferences/LanguageContext';
+
+const ANALYSIS_STEPS = [
+  { label: 'Extracting reel content', detail: 'Reading the public post and caption.', Icon: FileSearch },
+  { label: 'Transcribing the reel', detail: 'Turning spoken content into searchable text.', Icon: ScanText },
+  { label: 'Analysing key details', detail: 'Finding dates, links and useful topics.', Icon: Sparkles },
+  { label: 'Verifying sources', detail: 'Checking related sources and official links.', Icon: SearchCheck },
+];
+
+function AnalysisProgress({ step, complete }) {
+  return (
+    <div className="rounded-2xl border border-[#114b43]/15 bg-[#F5F3E9] p-5 sm:p-6" role="status" aria-live="polite">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#114b43] text-white">
+          {complete ? <CheckCircle2 size={21} /> : <LoaderCircle size={21} className="animate-spin" />}
+        </div>
+        <div>
+          <p className="text-sm font-bold text-[#114b43]">{complete ? 'Your reel is ready' : 'Preparing your reel vault entry'}</p>
+          <p className="mt-1 text-sm text-gray-600">{complete ? 'Opening your saved reel…' : 'This can take a moment for longer videos.'}</p>
+        </div>
+      </div>
+      <ol className="mt-5 space-y-3">
+        {ANALYSIS_STEPS.map(({ label, detail, Icon }, index) => {
+          const isDone = complete || index < step;
+          const isActive = !complete && index === step;
+          return <li key={label} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors ${isActive ? 'bg-white shadow-sm' : ''}`}>
+            <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${isDone ? 'bg-[#114b43] text-white' : isActive ? 'bg-[#d4f954] text-[#114b43]' : 'bg-white text-gray-300'}`}>
+              {isDone ? <CheckCircle2 size={15} /> : isActive ? <LoaderCircle size={15} className="animate-spin" /> : <Icon size={15} />}
+            </span>
+            <span><span className={`block text-sm font-bold ${isActive || isDone ? 'text-gray-800' : 'text-gray-400'}`}>{label}</span>{isActive && <span className="block text-xs text-gray-500">{detail}</span>}</span>
+          </li>;
+        })}
+      </ol>
+    </div>
+  );
+}
 
 export default function Home() {
   const [inputValue, setInputValue] = useState('');
   const [urlError, setUrlError] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [analysisStep, setAnalysisStep] = useState(0);
+  const [analysisComplete, setAnalysisComplete] = useState(false);
   const [recentReels, setRecentReels] = useState([]);
   const navigate = useNavigate();
   const { language } = useLanguage();
@@ -23,6 +60,14 @@ export default function Home() {
   useEffect(() => {
     loadRecent();
   }, []);
+
+  useEffect(() => {
+    if (!isSubmitting) return undefined;
+    const progressTimer = window.setInterval(() => {
+      setAnalysisStep((current) => Math.min(current + 1, 2));
+    }, 1500);
+    return () => window.clearInterval(progressTimer);
+  }, [isSubmitting]);
 
   const validateUrl = (url) => {
     if (!url.trim()) return 'empty';
@@ -44,11 +89,33 @@ export default function Home() {
     setUrlError(error);
     if (error) return;
     setSubmitError('');
+    setAnalysisStep(0);
+    setAnalysisComplete(false);
     setIsSubmitting(true);
     try {
-      await api.saveReel(inputValue.trim());
+      const reel = await api.saveReel(inputValue.trim());
+      setAnalysisStep(2);
+      try {
+        let research = await api.startResearch(reel.reel_id, {
+          transcript: reel.transcript || '',
+          caption: reel.caption || '',
+          title: reel.title || '',
+        });
+        const phase = (status) => (['verifying', 'researching'].includes(status) ? 3 : 2);
+        setAnalysisStep(phase(research.status));
+        for (let attempts = 0; attempts < 75 && !['done', 'not_opportunity', 'failed'].includes(research.status); attempts += 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1200));
+          research = await api.getResearch(reel.reel_id);
+          setAnalysisStep(phase(research.status));
+        }
+      } catch {
+        // The reel has already been safely saved. Source verification may be unavailable on a local server.
+        setAnalysisStep(3);
+      }
+      setAnalysisComplete(true);
       setInputValue('');
       loadRecent();
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
       navigate('/vault');
     } catch (requestError) {
       setSubmitError(requestError instanceof ApiError ? requestError.message : 'Unable to save this reel.');
@@ -83,6 +150,7 @@ export default function Home() {
                   type="url"
                   placeholder="https://www.instagram.com/reel/..."
                   value={inputValue}
+                  disabled={isSubmitting}
                   onChange={(e) => { setInputValue(e.target.value); setUrlError(''); setSubmitError(''); }}
                   className={`w-full pl-12 pr-5 py-4 bg-[#fdfdfc] border ${urlError && urlError !== 'empty' ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-200 focus:border-[#114b43] focus:ring-[#114b43]'} rounded-2xl text-[#1a1a1a] placeholder:text-gray-400 focus:outline-none focus:ring-1 transition-colors text-base font-medium`}
                 />
@@ -104,13 +172,12 @@ export default function Home() {
               )}
             </div>
 
-            <Button
-              disabled={isSubmitting}
+            {isSubmitting ? <AnalysisProgress step={analysisStep} complete={analysisComplete} /> : <Button
               type="submit"
-              className="w-full bg-[#d4f954] text-[#1a1a1a] hover:bg-[#c5f042] hover:shadow-md font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+              className="w-full bg-[#d4f954] text-[#1a1a1a] hover:bg-[#c5f042] hover:shadow-md font-bold py-4 rounded-xl text-lg flex items-center justify-center gap-2 transition-all"
             >
-              {isSubmitting ? 'SAVING REEL…' : 'SAVE TRANSCRIPT'} <ArrowRight size={20} strokeWidth={2.5} />
-            </Button>
+              SAVE & ANALYSE REEL <ArrowRight size={20} strokeWidth={2.5} />
+            </Button>}
           </form>
         </div>
       </section>

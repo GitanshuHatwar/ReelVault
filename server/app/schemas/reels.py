@@ -84,3 +84,17 @@ class SavedDateOut(SavedDateIn):
     id: int
     reel_id: int
     created_at: datetime
+
+
+class LinkVaultEntryIn(BaseModel):
+    """A durable resource bundle saved from one reel."""
+
+    title: str = Field(min_length=1, max_length=300)
+    links: list[MentionedSource] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
+
+
+class LinkVaultEntryOut(LinkVaultEntryIn):
+    id: int
+    reel_id: int
+    created_at: datetime

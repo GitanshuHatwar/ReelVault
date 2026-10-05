@@ -4,7 +4,7 @@ from app.config import get_settings
 from app.db import repo
 from app.deps import AuthUser, current_user
 from app.errors import NoContent, NotFound, RateLimited, UpstreamFailed
-from app.schemas.reels import DeepCookIn, DeepCookOut, ReelIn, ReelOut, SavedDateIn, SavedDateOut, SavedLinkIn, SavedLinkOut
+from app.schemas.reels import DeepCookIn, DeepCookOut, LinkVaultEntryIn, LinkVaultEntryOut, ReelIn, ReelOut, SavedDateIn, SavedDateOut, SavedLinkIn, SavedLinkOut
 from app.services.deep_cook.pipeline import run_deep_cook
 from app.services.shallow_cook import save_reel
 from app.services.titles import reel_title
@@ -53,6 +53,17 @@ def _saved_date_out(row: dict) -> SavedDateOut:
     return SavedDateOut(id=row["id"], reel_id=row["user_reel_id"], label=row["label"], event_date=str(row["event_date"]), created_at=row["created_at"])
 
 
+def _link_vault_entry_out(row: dict) -> LinkVaultEntryOut:
+    return LinkVaultEntryOut(
+        id=row["id"],
+        reel_id=row["user_reel_id"],
+        title=row["title"],
+        links=row.get("links") or [],
+        topics=row.get("topics") or [],
+        created_at=row["created_at"],
+    )
+
+
 @router.get("/saved-links", response_model=list[SavedLinkOut])
 def list_saved_links(user: AuthUser = Depends(current_user)):
     return [_saved_link_out(row) for row in repo.list_saved_links(user.id)]
@@ -61,6 +72,11 @@ def list_saved_links(user: AuthUser = Depends(current_user)):
 @router.get("/saved-dates", response_model=list[SavedDateOut])
 def list_saved_dates(user: AuthUser = Depends(current_user)):
     return [_saved_date_out(row) for row in repo.list_saved_dates(user.id)]
+
+
+@router.get("/link-vault", response_model=list[LinkVaultEntryOut])
+def list_link_vault(user: AuthUser = Depends(current_user)):
+    return [_link_vault_entry_out(row) for row in repo.list_link_vault_entries(user.id)]
 
 
 @router.post("/{reel_id}/saved-links", response_model=SavedLinkOut)
@@ -84,10 +100,27 @@ def save_date(reel_id: int, body: SavedDateIn, user: AuthUser = Depends(current_
     return _saved_date_out(repo.save_date(user.id, reel_id, body.label.strip(), body.event_date))
 
 
+@router.post("/{reel_id}/link-vault", response_model=LinkVaultEntryOut)
+def save_link_vault_entry(reel_id: int, body: LinkVaultEntryIn, user: AuthUser = Depends(current_user)):
+    if repo.get_user_reel(user.id, reel_id) is None:
+        raise NotFound("reel not found")
+    links = [link.model_dump(mode="json") for link in body.links if link.name.strip()]
+    topics = list(dict.fromkeys(topic.strip() for topic in body.topics if topic.strip()))
+    row = repo.save_link_vault_entry(user.id, reel_id, body.title.strip(), links, topics)
+    return _link_vault_entry_out(row)
+
+
 @router.delete("/saved-dates/{date_id}", status_code=204)
 def delete_saved_date(date_id: int, user: AuthUser = Depends(current_user)):
     if not repo.delete_saved_date(user.id, date_id):
         raise NotFound("saved date not found")
+    return Response(status_code=204)
+
+
+@router.delete("/link-vault/{entry_id}", status_code=204)
+def delete_link_vault_entry(entry_id: int, user: AuthUser = Depends(current_user)):
+    if not repo.delete_link_vault_entry(user.id, entry_id):
+        raise NotFound("link vault entry not found")
     return Response(status_code=204)
 
 

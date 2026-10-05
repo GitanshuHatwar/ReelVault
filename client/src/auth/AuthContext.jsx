@@ -4,17 +4,16 @@ import { AuthContext } from './context';
 
 export function AuthProvider({ children }) {
   const [session, setSessionState] = useState(getSession);
-  const [loading, setLoading] = useState(() => Boolean(getSession()?.access_token));
+  const [loading, setLoading] = useState(() => {
+    const s = getSession();
+    return Boolean(s?.access_token && !s?.is_mock && s?.access_token !== 'mock_static_admin_token');
+  });
   const accessToken = session?.access_token;
   const isMock = isMockSession(session);
 
   useEffect(() => {
     let active = true;
-    if (!accessToken) return () => { active = false; };
-
-    // In mock/offline prototype mode, preserve mock session without needing backend
-    if (session?.is_mock || accessToken === 'mock_static_admin_token') {
-      setLoading(false);
+    if (!accessToken || session?.is_mock || accessToken === 'mock_static_admin_token') {
       return () => { active = false; };
     }
 

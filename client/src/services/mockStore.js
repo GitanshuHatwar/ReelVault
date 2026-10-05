@@ -2,6 +2,7 @@ const MOCK_STORAGE_KEY_REELS = 'reelvault_mock_reels';
 const MOCK_STORAGE_KEY_RESEARCH = 'reelvault_mock_research';
 const MOCK_STORAGE_KEY_LINKS = 'reelvault_mock_links';
 const MOCK_STORAGE_KEY_DATES = 'reelvault_mock_dates';
+const MOCK_STORAGE_KEY_LINK_VAULT = 'reelvault_mock_link_vault';
 
 export const MOCK_ADMIN_USER = {
   id: 'usr_static_admin',
@@ -186,6 +187,17 @@ const INITIAL_DATES = [
   { id: 1, reel_id: 1, label: 'AI Founders Grant Deadline', event_date: '2026-11-15', created_at: '2026-10-04T10:36:00Z' },
   { id: 2, reel_id: 2, label: 'GSoC Registration Opens', event_date: '2026-10-20', created_at: '2026-10-05T08:06:00Z' },
   { id: 3, reel_id: 3, label: 'STEM Leaders Scholarship Deadline', event_date: '2026-11-30', created_at: '2026-10-02T14:20:00Z' }
+];
+
+const INITIAL_LINK_VAULT = [
+  {
+    id: 1,
+    reel_id: 1,
+    title: 'AI Founders Global Grant 2026 - $100K Non-Dilutive Funding',
+    links: [{ name: 'AI Founders Grant Official', url: 'https://aifoundersgrant.org' }],
+    topics: ['grant', 'hackathon', 'ai', 'funding', 'students'],
+    created_at: '2026-10-04T10:35:00Z',
+  },
 ];
 
 function getStored(key, fallback) {
@@ -385,6 +397,30 @@ export const mockStore = {
     const dates = this.getSavedDates();
     const updated = dates.filter((d) => d.id !== Number(dateId));
     setStored(MOCK_STORAGE_KEY_DATES, updated);
+    return true;
+  },
+
+  getLinkVaultEntries() {
+    return getStored(MOCK_STORAGE_KEY_LINK_VAULT, INITIAL_LINK_VAULT);
+  },
+
+  saveLinkVaultEntry(reelId, body) {
+    const entries = this.getLinkVaultEntries();
+    const existing = entries.find((entry) => entry.reel_id === Number(reelId));
+    const entry = {
+      id: existing?.id || (entries.length > 0 ? Math.max(...entries.map((item) => item.id)) + 1 : 1),
+      reel_id: Number(reelId),
+      title: body.title,
+      links: body.links || [],
+      topics: body.topics || [],
+      created_at: existing?.created_at || new Date().toISOString(),
+    };
+    setStored(MOCK_STORAGE_KEY_LINK_VAULT, [entry, ...entries.filter((item) => item.reel_id !== Number(reelId))]);
+    return entry;
+  },
+
+  deleteLinkVaultEntry(entryId) {
+    setStored(MOCK_STORAGE_KEY_LINK_VAULT, this.getLinkVaultEntries().filter((item) => item.id !== Number(entryId)));
     return true;
   }
 };

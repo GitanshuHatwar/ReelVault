@@ -207,3 +207,53 @@ def list_saved_dates(user_id: str) -> list[dict]:
 
 def delete_saved_date(user_id: str, date_id: int) -> bool:
     return bool(get_db().table("user_saved_dates").delete().eq("id", date_id).eq("user_id", user_id).execute().data)
+
+
+def save_link_vault_entry(user_id: str, reel_id: int, title: str, links: list[dict], topics: list[str]) -> dict:
+    """Save one reel's useful links and follow-up search terms as a single shelf item."""
+    payload = {
+        "user_id": user_id,
+        "user_reel_id": reel_id,
+        "title": title,
+        "links": links,
+        "topics": topics,
+    }
+    result = get_db().table("user_link_vault_entries").upsert(
+        payload,
+        on_conflict="user_id,user_reel_id",
+    ).execute()
+    if result.data:
+        return result.data[0]
+    saved = _one(
+        get_db().table("user_link_vault_entries")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("user_reel_id", reel_id)
+        .limit(1)
+        .execute()
+    )
+    if saved is None:
+        raise UpstreamFailed("could not save link vault entry")
+    return saved
+
+
+def list_link_vault_entries(user_id: str) -> list[dict]:
+    return (
+        get_db().table("user_link_vault_entries")
+        .select("*")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .execute()
+        .data
+    )
+
+
+def delete_link_vault_entry(user_id: str, entry_id: int) -> bool:
+    return bool(
+        get_db().table("user_link_vault_entries")
+        .delete()
+        .eq("id", entry_id)
+        .eq("user_id", user_id)
+        .execute()
+        .data
+    )
