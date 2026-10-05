@@ -1,4 +1,6 @@
 import { Link } from 'react-router-dom';
+import InteractiveHeroVisual from '../components/landing/InteractiveHeroVisual';
+
 import { Play, Link as LinkIcon, ScanSearch, Archive, Check } from 'lucide-react';
 
 export default function Landing() {
@@ -96,88 +98,8 @@ export default function Landing() {
 
           {/* RIGHT: Mockup */}
           <div className="flex-1 w-full flex justify-center lg:justify-center relative mt-12 lg:mt-0">
-            {/* The Reel Container */}
-            <div className="w-full max-w-[280px] sm:max-w-[320px] md:max-w-[350px] relative">
-              
-              {/* Outer Device Frame */}
-              <div className="w-full aspect-[9/16] bg-[#1a1a1a] rounded-[2rem] md:rounded-[2.25rem] p-2 md:p-2.5 shadow-xl relative flex flex-col">
-                
-                {/* Inner Screen */}
-                <div className="bg-[#164E44] flex-1 w-full rounded-[1.5rem] md:rounded-[1.75rem] relative overflow-hidden flex flex-col border border-white/5">
-                  
-                  {/* Film strip dots top */}
-                  <div className="w-full h-8 flex items-center justify-between px-6 bg-[#1a1a1a] shrink-0">
-                    {[...Array(7)].map((_, i) => (
-                      <div key={`t-${i}`} className="w-1.5 h-1.5 rounded-full bg-white/30"></div>
-                    ))}
-                  </div>
-
-                  {/* Reel Content Wrapper */}
-                  <div className="flex-1 flex flex-col justify-between pt-6 pb-6 px-5 relative z-10">
-                    
-                    {/* Header */}
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-full bg-[#d4f954] shrink-0"></div>
-                      <div className="flex flex-col">
-                        <span className="text-white font-bold text-[11px] md:text-xs leading-tight">@scholarship.daily</span>
-                        <span className="text-white/80 text-[9px] md:text-[10px] mt-0.5">Sponsored · 0:48</span>
-                      </div>
-                    </div>
-
-                    {/* Main Claim */}
-                    <div className="font-display uppercase tracking-wide w-full flex flex-col justify-center">
-                      <div className="text-white text-[1.75rem] sm:text-[2rem] md:text-[2.25rem] leading-[0.9]">₹80,000 FOR</div>
-                      <div className="text-[#d4f954] text-[1.75rem] sm:text-[2rem] md:text-[2.25rem] leading-[0.9] mt-1">EVERY 12TH PASS</div>
-                      <div className="text-white text-[1.75rem] sm:text-[2rem] md:text-[2.25rem] leading-[0.9] mt-1">STUDENT</div>
-                    </div>
-
-                    {/* Caption */}
-                    <div className="">
-                      <p className="text-white/90 text-[10px] md:text-xs leading-relaxed max-w-[180px]">
-                        Apply before the deadline. Link in bio.
-                      </p>
-                    </div>
-
-                  </div>
-
-                  {/* Film strip dots bottom */}
-                  <div className="w-full h-8 flex items-center justify-between px-6 bg-[#1a1a1a] shrink-0">
-                    {[...Array(7)].map((_, i) => (
-                      <div key={`b-${i}`} className="w-1.5 h-1.5 rounded-full bg-white/30"></div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Overlay Verdict Card */}
-              {/* On mobile: negative margin to stack just below with slight overlap, on desktop: absolute positioning */}
-              <div className="relative md:absolute mt-[-2rem] md:mt-0 md:-bottom-4 md:-right-8 lg:-right-12 w-[280px] sm:w-[300px] md:w-[320px] bg-white rounded-2xl shadow-lg border border-gray-100 p-4 md:p-5 z-30 mx-auto md:mx-0">
-                <div className="flex items-center justify-between mb-3 border-b border-gray-100 pb-2.5">
-                  <span className="text-[10px] md:text-xs font-bold tracking-[0.15em] text-gray-500 uppercase">VERDICT</span>
-                  <div className="bg-[#fff8ea] border border-[#f5e3c3] text-[#b47a18] px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1">
-                    <span className="w-[12px] h-[12px] rounded-full border-[1.5px] border-current flex items-center justify-center text-[7px] font-black pb-[0.5px]">!</span>
-                    Partially Supported
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="bg-[#f8f9f7] p-2 md:p-2.5 rounded-xl flex items-center justify-between border border-black/5">
-                    <span className="text-[11px] md:text-xs font-semibold text-[#1a1a1a]">Pays ₹80,000 per year</span>
-                    <div className="w-2 h-2 rounded-full bg-[#16a34a] shrink-0 ml-2"></div>
-                  </div>
-                  <div className="bg-[#f8f9f7] p-2 md:p-2.5 rounded-xl flex items-center justify-between border border-black/5">
-                    <span className="text-[11px] md:text-xs font-semibold text-[#1a1a1a] truncate pr-2">Every 12th pass student can ap...</span>
-                    <div className="w-2 h-2 rounded-full bg-[#dc2626] shrink-0 ml-2"></div>
-                  </div>
-                  <div className="bg-[#f8f9f7] p-2 md:p-2.5 rounded-xl flex items-center justify-between border border-black/5">
-                    <span className="text-[11px] md:text-xs font-semibold text-[#1a1a1a]">Last date is 31 October</span>
-                    <div className="w-2 h-2 rounded-full bg-[#d97706] shrink-0 ml-2"></div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <InteractiveHeroVisual />
           </div>
-
         </section>
 
         {/* HOW IT WORKS SECTION */}
