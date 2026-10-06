@@ -14,7 +14,89 @@ export {
   MOCK_ADMIN_SESSION,
 };
 
-const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+export const DEPLOYED_BACKEND_URL = 'https://reel-vault-7r89.vercel.app';
+export const LOCAL_BACKEND_URLS = ['http://127.0.0.1:8000', 'http://localhost:8000'];
+
+const PRIMARY_URL = (import.meta.env.VITE_API_BASE_URL || DEPLOYED_BACKEND_URL).replace(/\/$/, '');
+
+export const CANDIDATE_BACKEND_URLS = Array.from(
+  new Set([
+    PRIMARY_URL,
+    DEPLOYED_BACKEND_URL,
+    ...LOCAL_BACKEND_URLS,
+  ].filter(Boolean))
+);
+
+let cachedBaseUrl = null;
+let resolvePromise = null;
+
+/**
+ * Checks if a backend is healthy and responding.
+ * Returns true if /healthz returns HTTP 200 OK.
+ */
+export async function checkBackendHealth(baseUrl, timeoutMs = 2500) {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const response = await fetch(`${baseUrl}/healthz`, {
+      method: 'GET',
+      headers: { Accept: 'application/json' },
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Discovers and returns the active API base URL.
+ * Checks the deployed backend first; if unreachable, falls back to local host.
+ */
+export async function resolveApiBaseUrl(force = false) {
+  if (cachedBaseUrl && !force) {
+    return cachedBaseUrl;
+  }
+  if (resolvePromise && !force) {
+    return resolvePromise;
+  }
+
+  resolvePromise = (async () => {
+    // 1. Check deployed backend first, then local host candidates
+    for (const url of CANDIDATE_BACKEND_URLS) {
+      const isAlive = await checkBackendHealth(url);
+      if (isAlive) {
+        if (url !== PRIMARY_URL) {
+          console.warn(`[ReelVault API] Primary URL (${PRIMARY_URL}) unreachable. Connected to fallback: ${url}`);
+        } else {
+          console.info(`[ReelVault API] Connected to backend: ${url}`);
+        }
+        cachedBaseUrl = url;
+        return url;
+      }
+    }
+
+    // If all health checks fail, default to primary/deployed URL
+    console.warn(`[ReelVault API] Health checks failed for all candidates. Defaulting to: ${PRIMARY_URL}`);
+    cachedBaseUrl = PRIMARY_URL;
+    return cachedBaseUrl;
+  })();
+
+  try {
+    return await resolvePromise;
+  } finally {
+    resolvePromise = null;
+  }
+}
+
+// Start probing backend access immediately on app load
+resolveApiBaseUrl();
+
+export function getActiveApiBaseUrl() {
+  return cachedBaseUrl || PRIMARY_URL;
+}
+
 const SESSION_KEY = 'reelvault_session';
 
 export class ApiError extends Error {
@@ -63,8 +145,21 @@ async function parseResponse(response) {
   return payload;
 }
 
+async function sendFetch(baseUrl, path, { method = 'GET', body, auth = true } = {}) {
+  const session = getSession();
+  const headers = { Accept: 'application/json' };
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (auth && session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+  return fetch(`${baseUrl}${path}`, {
+    method,
+    headers,
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
 async function refreshSession(session) {
-  const response = await fetch(`${API_BASE_URL}/v1/auth/refresh`, {
+  const baseUrl = await resolveApiBaseUrl();
+  const response = await fetch(`${baseUrl}/v1/auth/refresh`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refresh_token: session.refresh_token }),
@@ -76,23 +171,60 @@ async function refreshSession(session) {
 
 async function request(path, { method = 'GET', body, auth = true, retry = true } = {}) {
   let session = getSession();
-  const send = async () => {
-    const headers = { Accept: 'application/json' };
-    if (body !== undefined) headers['Content-Type'] = 'application/json';
-    if (auth && session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-    return fetch(`${API_BASE_URL}${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  };
+  let baseUrl = await resolveApiBaseUrl();
+
+  const doSend = (targetUrl) => sendFetch(targetUrl, path, { method, body, auth });
 
   try {
-    let response = await send();
+    let response;
+    try {
+      response = await doSend(baseUrl);
+    } catch (networkErr) {
+      // Network error (e.g. server offline or CORS failure): attempt fallback candidates
+      let fallbackSuccess = false;
+      for (const candidate of CANDIDATE_BACKEND_URLS) {
+        if (candidate !== baseUrl) {
+          try {
+            response = await doSend(candidate);
+            console.warn(`[ReelVault API] Failover from ${baseUrl} to ${candidate}`);
+            cachedBaseUrl = candidate;
+            baseUrl = candidate;
+            fallbackSuccess = true;
+            break;
+          } catch {
+            // Keep looking
+          }
+        }
+      }
+      if (!fallbackSuccess) {
+        throw networkErr;
+      }
+    }
+
+    // If primary/deployed server crashed (5xx like FUNCTION_INVOCATION_FAILED), try local fallbacks
+    if (response.status >= 500 && (baseUrl === DEPLOYED_BACKEND_URL || baseUrl === PRIMARY_URL)) {
+      for (const localCandidate of LOCAL_BACKEND_URLS) {
+        if (localCandidate !== baseUrl) {
+          try {
+            const fallbackResp = await doSend(localCandidate);
+            if (fallbackResp.status < 500) {
+              console.warn(`[ReelVault API] 5xx on ${baseUrl}, failover to healthy local host: ${localCandidate}`);
+              cachedBaseUrl = localCandidate;
+              baseUrl = localCandidate;
+              response = fallbackResp;
+              break;
+            }
+          } catch {
+            // Local server not running
+          }
+        }
+      }
+    }
+
     if (auth && retry && response.status === 401 && session?.refresh_token) {
       try {
         session = await refreshSession(session);
-        response = await send();
+        response = await doSend(baseUrl);
       } catch {
         clearSession();
       }
