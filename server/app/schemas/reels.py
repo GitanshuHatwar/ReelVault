@@ -137,3 +137,24 @@ class LinkVaultEntryOut(LinkVaultEntryIn):
     id: int
     reel_id: int
     created_at: datetime
+
+
+class TavilySourceOut(BaseModel):
+    title: str = Field(default="")
+    url: str = Field(default="")
+    content: str = Field(default="")
+    score: float | None = None
+
+
+class TavilyVerifyIn(BaseModel):
+    query: str | None = None
+    title: str | None = None
+    summary: str | None = None
+    keywords: list[str] | None = None
+
+
+class TavilyVerifyOut(BaseModel):
+    verified: bool = Field(default=False)
+    query: str = Field(default="")
+    sources: list[TavilySourceOut] = Field(default_factory=list)
+    summary: str | None = None

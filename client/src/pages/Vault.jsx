@@ -11,6 +11,7 @@ import {
   CalendarPlus,
   Check,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Compass,
   Copy,
@@ -1171,88 +1172,141 @@ function ExtractionResultCard({
 }
 
 
-function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete, focusReelId }) {
-  const [openId, setOpenId] = useState(focusReelId || null);
-  const [topicInputs, setTopicInputs] = useState({});
+function DeepFridgePage({ reels, language, onDelete, focusReelId }) {
+  const [expandedTranscripts, setExpandedTranscripts] = useState({});
+  const [verifyingMap, setVerifyingMap] = useState({});
+  const [resultsMap, setResultsMap] = useState(() => {
+    try {
+      const cached = localStorage.getItem("reelvault_tavily_results");
+      return cached ? JSON.parse(cached) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [errorMap, setErrorMap] = useState({});
 
   useEffect(() => {
     if (focusReelId) {
-      setOpenId(focusReelId);
+      const element = document.getElementById(`deep-fridge-reel-${focusReelId}`);
+      if (element) {
+        element.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
   }, [focusReelId]);
 
-  const handleTopicChange = (reelId, val) => {
-    setTopicInputs((prev) => ({ ...prev, [reelId]: val }));
+  const toggleTranscript = (reelId) => {
+    setExpandedTranscripts((prev) => ({
+      ...prev,
+      [reelId]: !prev[reelId],
+    }));
   };
 
-  const handleVerifyTopic = (reel, specificTopic) => {
-    onResearch(reel, specificTopic);
-  };
+  const handleVerifyContent = async (reel) => {
+    const reelId = reel.reel_id;
+    setVerifyingMap((prev) => ({ ...prev, [reelId]: true }));
+    setErrorMap((prev) => ({ ...prev, [reelId]: null }));
 
-  const completed = reels
-    .map((reel) => ({ reel, result: researchByReel[reel.reel_id] }))
-    .filter(
-      ({ result }) =>
-        result?.status === "done" || result?.status === "not_opportunity",
-    );
+    const title = reel.title || "";
+    const summary = reel.analysis?.summary || reel.caption || "";
+    const keywords = reel.analysis?.tags || [];
+    const keywordStr = keywords.slice(0, 3).join(" ");
+
+    let query = "";
+    if (title && keywordStr) {
+      query = `${title} ${keywordStr}`;
+    } else if (title) {
+      query = title;
+    } else if (summary) {
+      query = summary.slice(0, 100);
+    } else {
+      query = "opportunity verification";
+    }
+
+    try {
+      const res = await api.verifyWithTavily(reelId, {
+        query,
+        title,
+        summary,
+        keywords,
+      });
+      setResultsMap((prev) => {
+        const next = { ...prev, [reelId]: res };
+        try {
+          localStorage.setItem("reelvault_tavily_results", JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    } catch (err) {
+      setErrorMap((prev) => ({
+        ...prev,
+        [reelId]: err?.message || "Failed to verify content with Tavily.",
+      }));
+    } finally {
+      setVerifyingMap((prev) => ({ ...prev, [reelId]: false }));
+    }
+  };
 
   return (
-    <section className="pt-2" aria-label="Deep Fridge">
+    <section className="pt-2" aria-label="Analyze and Verify Truth">
       <div className="mb-6">
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">
-            Deep Fridge
+            Analyze
           </p>
           <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-800">
-            Gemini AI & Web Search
+            Tavily Search Platform
           </span>
         </div>
         <h2 className="font-display text-3xl tracking-wide uppercase text-[#1a1a1a] mt-1">
-          TRUTH VERIFICATION & DEEP RESEARCH
+          ANALYZE & VERIFY TRUTH
         </h2>
         <p className="text-gray-600 font-medium mt-2">
-          Search for the truth of topics, verify reel correctness with Gemini AI real-time web search, and inspect evidence-backed official sources.
+          Inspect spoken audio transcripts and summaries, verify reel correctness in real time using the Tavily search platform, and review evidence-backed web sources.
         </p>
       </div>
 
-      {reels.length > 0 && (
-        <div className="mb-8 space-y-5">
+      {reels.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
+          <p className="font-semibold text-gray-700">No reels saved yet.</p>
+          <p className="mt-1">
+            Save a reel in your Vault to analyze spoken audio transcripts and verify truth with Tavily.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-6">
           {reels.map((reel) => {
-            const result = researchByReel[reel.reel_id];
-            const researching = result && ACTIVE_STATUSES.has(result.status);
-            const text = displayContent(reel, language);
-            const expanded = openId === reel.reel_id;
-            const customTopic = topicInputs[reel.reel_id] || "";
-            const reelTopics = [
-              ...new Set([
-                ...(reel.analysis?.tags || []),
-                ...(reel.analysis?.details?.competitions || []),
-                ...(reel.analysis?.details?.people || []),
-                ...(reel.analysis?.details?.books || []),
-              ]),
-            ];
+            const reelId = reel.reel_id;
+            const isExpanded = !!expandedTranscripts[reelId];
+            const isVerifying = !!verifyingMap[reelId];
+            const tavilyResult = resultsMap[reelId];
+            const hasVerified = !!tavilyResult?.verified;
+            const summaryText = reel.analysis?.summary || reel.caption || "No summary available.";
 
             return (
               <article
-                key={reel.reel_id}
-                id={`deep-fridge-reel-${reel.reel_id}`}
-                className={`rounded-2xl border bg-white p-5 shadow-sm transition-all ${
-                  focusReelId === reel.reel_id
+                key={reelId}
+                id={`deep-fridge-reel-${reelId}`}
+                className={`rounded-2xl border bg-white p-6 shadow-sm transition-all ${
+                  focusReelId === reelId
                     ? "border-[#114b43] ring-2 ring-[#114b43]/30"
                     : "border-gray-100"
                 }`}
               >
+                {/* Header: Platform, Saved Date, Remove button */}
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400">
                       {reel.platform} · saved {formatDate(reel.created_at)}
                     </p>
-                    <h3 className="mt-1 font-bold text-lg text-[#1a1a1a]">{reel.title}</h3>
+                    {/* Title */}
+                    <h3 className="mt-1 font-bold text-xl text-[#1a1a1a]">
+                      {reel.title || "Untitled Reel"}
+                    </h3>
                   </div>
                   <button
                     type="button"
-                    onClick={() => onDelete(reel.reel_id)}
-                    className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500"
+                    onClick={() => onDelete(reelId)}
+                    className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-gray-400 hover:text-red-500 transition-colors"
                     title="Remove from vault"
                   >
                     <Trash2 size={15} /> Remove
@@ -1268,452 +1322,219 @@ function DeepFridgePage({ reels, researchByReel, language, onResearch, onDelete,
                   </p>
                 )}
 
-                {/* Reel Summary Being Sent for Truth Verification */}
-                {reel.analysis?.summary && (
-                  <div className="mt-4 rounded-xl border border-[#114b43]/15 bg-[#F5F3E9] p-4">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] mb-1">
-                      Reel Summary (to verify)
-                    </p>
-                    <p className="text-sm font-medium text-gray-800">{reel.analysis.summary}</p>
-                    {reel.analysis.summary_points?.length > 0 && (
-                      <ul className="mt-2.5 space-y-1 text-xs text-gray-600">
-                        {reel.analysis.summary_points.map((pt, idx) => (
-                          <li key={idx} className="flex items-start gap-2">
-                            <span className="text-[#114b43] font-bold">•</span>
-                            <span>{pt}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                )}
-
-                {/* Topics to Verify */}
-                {reelTopics.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
-                      Topics to search for truth:
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {reelTopics.map((topic) => (
-                        <button
-                          key={topic}
-                          type="button"
-                          onClick={() => handleVerifyTopic(reel, topic)}
-                          disabled={researching}
-                          className="inline-flex items-center gap-1.5 rounded-full bg-white border border-[#114b43]/30 px-3 py-1 text-xs font-semibold text-[#114b43] hover:bg-[#F5F3E9] transition-colors disabled:opacity-50"
-                          title={`Search truth for topic: ${topic}`}
-                        >
-                          <Search size={11} /> {topic}
-                        </button>
+                {/* 1. Summary */}
+                <div className="mt-4 rounded-xl border border-[#114b43]/15 bg-[#F5F3E9] p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] mb-1">
+                    Summary
+                  </p>
+                  <p className="text-sm font-medium text-gray-800 leading-relaxed">
+                    {summaryText}
+                  </p>
+                  {reel.analysis?.summary_points?.length > 0 && (
+                    <ul className="mt-2.5 space-y-1 text-xs text-gray-600">
+                      {reel.analysis.summary_points.map((pt, idx) => (
+                        <li key={idx} className="flex items-start gap-2">
+                          <span className="text-[#114b43] font-bold">•</span>
+                          <span>{pt}</span>
+                        </li>
                       ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Custom Topic Search Field */}
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <div className="relative flex-1 min-w-[200px]">
-                    <Search
-                      size={14}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Search truth of a specific topic or claim..."
-                      value={customTopic}
-                      onChange={(e) => handleTopicChange(reel.reel_id, e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && customTopic.trim() && !researching) {
-                          handleVerifyTopic(reel, customTopic.trim());
-                        }
-                      }}
-                      className="w-full rounded-lg border border-gray-200 pl-8 pr-3 py-1.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-[#114b43]"
-                    />
-                  </div>
-                  {customTopic.trim() && (
-                    <button
-                      type="button"
-                      disabled={researching}
-                      onClick={() => handleVerifyTopic(reel, customTopic.trim())}
-                      className="inline-flex items-center gap-1 rounded-lg bg-[#114b43] px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-white hover:bg-[#0c352f] disabled:opacity-50"
-                    >
-                      Search Truth
-                    </button>
+                    </ul>
                   )}
                 </div>
 
-                {/* Original Transcribe Section */}
-                <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50/80 p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-[#114b43] flex items-center gap-1.5">
-                      <FileText size={13} /> Original Transcribe
-                    </p>
-                    <span className="text-[10px] font-bold uppercase text-gray-400">
-                      Spoken Audio Transcript
-                    </span>
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-800 leading-relaxed whitespace-pre-wrap bg-white p-3.5 rounded-lg border border-gray-200/70 max-h-56 overflow-y-auto">
-                    {reel.transcript || reel.caption || "No original transcript available."}
-                  </p>
-                </div>
-
-                {/* Primary Action Buttons */}
-                <div className="mt-5 flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100">
+                {/* 2. Original Transcribe: Collapsible Accordion (expand on click) */}
+                <div className="mt-4">
                   <button
                     type="button"
-                    onClick={() => {
-                      // Does nothing for current time as requested
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-600 bg-emerald-50 px-3.5 py-2 text-xs font-bold uppercase tracking-widest text-emerald-800 hover:bg-emerald-100 transition-colors shadow-2xs"
-                    title="Verify reel truth (does nothing currently)"
+                    onClick={() => toggleTranscript(reelId)}
+                    className="w-full flex items-center justify-between rounded-xl border border-gray-200 bg-gray-50/90 px-4 py-3 text-left hover:bg-gray-100 transition-colors shadow-2xs"
                   >
-                    <CheckCircle2 size={15} className="text-emerald-600" /> Verify True
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => onResearch(reel, customTopic || null)}
-                    disabled={researching}
-                    className="inline-flex items-center gap-2 rounded-lg bg-[#114b43] px-4 py-2 text-xs font-bold uppercase tracking-widest text-white hover:bg-[#0c352f] disabled:opacity-60 transition-colors shadow-xs"
-                  >
-                    <Sparkles size={14} />
-                    {researching ? "Verifying Truth via Gemini…" : "Search Truth & Verify (Gemini AI)"}
-                  </button>
-                  <a
-                    href={reel.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest text-blue-600 underline underline-offset-4"
-                  >
-                    <ExternalLink size={13} /> Open original
-                  </a>
-                  <a
-                    href={`https://www.google.com/search?q=${encodeURIComponent(
-                      `${reel.title} official source registration`
-                    )}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-gray-500 hover:text-[#114b43]"
-                  >
-                    <Globe size={13} /> Web search
-                  </a>
-                </div>
-
-                {researching && (
-                  <div className="mt-3.5 flex items-center gap-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200 px-4 py-3 text-sm text-[#114b43]">
-                    <LoaderCircle size={17} className="animate-spin text-[#114b43]" />
-                    <div>
-                      <p className="font-bold">Verifying truth with Gemini AI real-time web search…</p>
-                      <p className="text-xs text-emerald-800">
-                        Analyzing summary, topics, and cross-referencing official portals and claims.
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {result?.status === "failed" && (
-                  <p role="alert" className="mt-3 text-sm text-amber-800">
-                    Verification could not run
-                    {result.error_code === "ai_rate_limited"
-                      ? " because the AI quota or rate limit was reached."
-                      : result.error_code === "gemini_unconfigured"
-                      ? " because the Gemini API key is not configured in server/.env."
-                      : "."}
-                  </p>
-                )}
-              </article>
-            );
-          })}
-        </div>
-      )}
-
-      {completed.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
-          <p className="font-semibold text-gray-700">No verification reports yet.</p>
-          <p className="mt-1">
-            Click <strong>Search Truth & Verify (Gemini AI)</strong> on any reel above to check topic truth and official sources.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">
-              Verified Opportunity Briefings & Truth Reports
-            </h3>
-            <span className="text-xs font-bold text-gray-400">
-              {completed.length} {completed.length === 1 ? "report" : "reports"}
-            </span>
-          </div>
-
-          {completed.map(({ reel, result }) => {
-            const verification = result.verification;
-            const report = result.report;
-            const isVerified = verification?.sources_verified || verification?.verdict === "official_confirmed";
-
-            return (
-              <article
-                key={result.id}
-                className="bg-white rounded-[1.5rem] border border-gray-100 p-6 shadow-sm"
-              >
-                {/* Header with Title and Green Tick */}
-                <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-gray-100">
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                      {isVerified ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-300 px-3 py-1 text-xs font-bold text-emerald-800">
-                          <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
-                          Sources Verified
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 border border-amber-300 px-3 py-1 text-xs font-bold text-amber-800">
-                          <AlertCircle size={16} className="text-amber-600 shrink-0" />
-                          Sources Unconfirmed
-                        </span>
-                      )}
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                        {verification?.verdict?.replaceAll("_", " ") || "Not an opportunity"}
+                    <div className="flex items-center gap-2">
+                      <FileText size={15} className="text-[#114b43]" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-[#114b43]">
+                        Original Transcribe
+                      </span>
+                      <span className="text-[10px] font-medium text-gray-500">
+                        {isExpanded ? "(click to collapse)" : "(click to expand)"}
                       </span>
                     </div>
-                    <h3 className="text-xl font-bold text-[#1a1a1a]">{reel.title}</h3>
-                  </div>
+                    <ChevronDown
+                      size={16}
+                      className={`text-gray-500 transition-transform duration-200 ${
+                        isExpanded ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
 
-                  <div className="text-right text-xs text-gray-500">
-                    <p><strong>Saved:</strong> {formatDate(reel.created_at)}</p>
-                    {result.created_at && (
-                      <p className="mt-0.5"><strong>Verified:</strong> {formatDate(result.created_at)}</p>
-                    )}
-                  </div>
-                </div>
-
-                {/* Gemini Verification Summary */}
-                {verification?.summary && (
-                  <div className={`mt-4 rounded-xl p-4 border ${
-                    isVerified ? "bg-emerald-50/60 border-emerald-200" : "bg-[#F5F3E9] border-gray-200"
-                  }`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      {isVerified && <CheckCircle2 size={15} className="text-emerald-600" />}
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-[#114b43]">
-                        Gemini Truth & Correctness Summary
-                      </p>
-                    </div>
-                    <p className="text-sm font-medium leading-relaxed text-gray-800">
-                      {verification.summary}
-                    </p>
-                    {verification?.official_deadline && (
-                      <p className="mt-2 text-xs font-bold text-[#114b43]">
-                        Official Deadline: {formatDate(verification.official_deadline)}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {/* Official Search Links */}
-                {verification?.official_urls?.length > 0 && (
-                  <div className="mt-5 rounded-xl bg-gray-50 border border-gray-100 p-4">
-                    <div className="flex items-center justify-between mb-2.5">
-                      <div className="flex items-center gap-1.5">
-                        <ShieldCheck size={16} className="text-emerald-600" />
-                        <h4 className="text-xs font-bold uppercase tracking-widest text-gray-700">
-                          Official Search Sources & Links
-                        </h4>
+                  {isExpanded && (
+                    <div className="mt-2 rounded-xl border border-gray-200 bg-white p-4 shadow-2xs">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                          Spoken Audio Transcript
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          {(reel.transcript || reel.caption || "").length} characters
+                        </span>
                       </div>
-                      <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
-                        Verified Official
+                      <p className="text-xs sm:text-sm text-gray-800 leading-relaxed whitespace-pre-wrap max-h-60 overflow-y-auto">
+                        {reel.transcript || reel.caption || "No original transcript available."}
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Bottom Action Bar: Verify Content Button */}
+                <div className="mt-5 flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-gray-100">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => handleVerifyContent(reel)}
+                      disabled={isVerifying}
+                      className={`inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold uppercase tracking-wider transition-all shadow-xs ${
+                        hasVerified
+                          ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+                          : "bg-[#114b43] hover:bg-[#0c352f] text-white"
+                      } disabled:opacity-60`}
+                    >
+                      {isVerifying ? (
+                        <>
+                          <LoaderCircle size={15} className="animate-spin text-white" />
+                          <span>Verifying with Tavily…</span>
+                        </>
+                      ) : hasVerified ? (
+                        <>
+                          <CheckCircle2 size={16} className="text-white" />
+                          <span>Re-verify Content</span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldCheck size={16} />
+                          <span>Verify the Content</span>
+                        </>
+                      )}
+                    </button>
+
+                    <a
+                      href={reel.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1 text-xs font-bold uppercase tracking-wider text-blue-600 hover:text-blue-800 underline underline-offset-4"
+                    >
+                      <ExternalLink size={13} /> Open original reel
+                    </a>
+                  </div>
+
+                  {hasVerified && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-300 px-3 py-1 text-xs font-bold text-emerald-800">
+                      <CheckCircle2 size={14} className="text-emerald-600" />
+                      Content Verified
+                    </span>
+                  )}
+                </div>
+
+                {/* Loading state indicator */}
+                {isVerifying && (
+                  <div className="mt-4 flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-200 px-4 py-3 text-sm text-[#114b43]">
+                    <LoaderCircle size={18} className="animate-spin text-[#114b43] shrink-0" />
+                    <div>
+                      <p className="font-bold text-xs uppercase tracking-wide">
+                        Searching & Verifying Truth with Tavily…
+                      </p>
+                      <p className="text-xs text-emerald-800">
+                        Querying real-time web sources using title, summary, and keywords.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Error message */}
+                {errorMap[reelId] && (
+                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3.5 text-xs text-red-700 flex items-start gap-2">
+                    <AlertCircle size={15} className="text-red-500 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold">Verification Failed</p>
+                      <p>{errorMap[reelId]}</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Tavily Verified Results Card & Top 3 Sources */}
+                {hasVerified && tavilyResult && (
+                  <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-emerald-200/60">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white shadow-2xs">
+                          <CheckCircle2 size={18} />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-emerald-950">
+                              Content Verified
+                            </span>
+                            <span className="rounded-full bg-emerald-200/90 px-2 py-0.5 text-[10px] font-bold text-emerald-900 uppercase tracking-wider">
+                              Tavily Platform
+                            </span>
+                          </div>
+                          {tavilyResult.query && (
+                            <p className="text-[11px] text-emerald-800 mt-0.5">
+                              Searched: <span className="font-semibold italic">"{tavilyResult.query}"</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
+                        <CheckCircle2 size={12} className="text-emerald-600" />
+                        Top 3 Sources Found
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-2.5">
-                      {verification.official_urls.map((url, idx) => (
-                        <a
-                          key={`${url}-${idx}`}
-                          href={url}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-white border border-gray-200 px-3 py-1.5 text-xs font-bold text-blue-600 hover:text-blue-800 hover:border-blue-300 transition-colors shadow-2xs"
-                        >
-                          <ExternalLink size={13} className="shrink-0" />
-                          <span className="truncate max-w-[280px]">{url}</span>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                )}
 
-                {/* Supporting Search Links */}
-                {verification?.supporting_urls?.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-1.5">
-                      Web Search Citations & Discussions
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {verification.supporting_urls.map((url, idx) => {
-                        let hostname = url;
-                        try {
-                          hostname = new URL(url).hostname;
-                        } catch {
-                          hostname = url;
-                        }
-                        return (
-                          <a
-                            key={`${url}-${idx}`}
-                            href={url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-                          >
-                            <Globe size={11} /> {hostname}
-                          </a>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-
-                {/* Content of the Reel Verified (Claim Checks) */}
-                {verification?.claim_checks?.length > 0 && (
-                  <div className="mt-6 border-t border-gray-100 pt-5">
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-600 mb-3 flex items-center gap-2">
-                      <span>Reel Content & Claim Verification</span>
-                      <span className="text-[10px] text-gray-400 lowercase">({verification.claim_checks.length} claims verified)</span>
-                    </h4>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {verification.claim_checks.map((claim, cIdx) => {
-                        const status = claim.status?.toLowerCase();
-                        const isClaimVerified = status === "verified" || status === "matched";
-                        const isClaimFalse = status === "false" || status === "misleading";
-                        return (
-                          <div
-                            key={cIdx}
-                            className={`rounded-xl border p-3.5 flex flex-col justify-between ${
-                              isClaimVerified
-                                ? "bg-emerald-50/40 border-emerald-200/80"
-                                : isClaimFalse
-                                ? "bg-red-50/40 border-red-200/80"
-                                : "bg-[#F5F3E9] border-gray-200"
-                            }`}
-                          >
-                            <div>
-                              <div className="flex items-start justify-between gap-2 mb-1.5">
-                                <p className="text-xs font-bold text-gray-900 leading-snug">
-                                  {claim.claim}
-                                </p>
-                                {isClaimVerified ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800 shrink-0">
-                                    <CheckCircle2 size={11} /> Verified
+                    {/* Top 3 Web Sources */}
+                    <div className="mt-4">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#114b43] mb-3 flex items-center gap-1.5">
+                        <Globe size={13} /> Top 3 Sources from the Web
+                      </h4>
+                      <div className="space-y-3">
+                        {(tavilyResult.sources || []).slice(0, 3).map((source, sIdx) => {
+                          let displayHost = "";
+                          try {
+                            displayHost = new URL(source.url).hostname.replace("www.", "");
+                          } catch {
+                            displayHost = source.url;
+                          }
+                          return (
+                            <div
+                              key={`${source.url}-${sIdx}`}
+                              className="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs hover:border-[#114b43]/40 transition-colors"
+                            >
+                              <div className="flex flex-wrap items-start justify-between gap-2 mb-1.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#114b43] text-[10px] font-bold text-white shrink-0">
+                                    {sIdx + 1}
                                   </span>
-                                ) : isClaimFalse ? (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-red-100 px-2 py-0.5 text-[10px] font-bold text-red-800 shrink-0">
-                                    <XCircle size={11} /> False
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800 shrink-0">
-                                    <AlertCircle size={11} /> Unverified
-                                  </span>
-                                )}
+                                  <h5 className="font-bold text-sm text-gray-900 leading-snug">
+                                    {source.title || `Web Source #${sIdx + 1}`}
+                                  </h5>
+                                </div>
+                                <a
+                                  href={source.url}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition-colors border border-emerald-200/70 shrink-0"
+                                >
+                                  <ExternalLink size={12} /> {displayHost}
+                                </a>
                               </div>
-                              {claim.evidence && (
-                                <p className="text-xs text-gray-600 leading-relaxed mt-1">
-                                  <strong className="text-gray-700">Evidence:</strong> {claim.evidence}
+                              {source.content && (
+                                <p className="mt-1.5 text-xs text-gray-600 leading-relaxed">
+                                  {source.content}
                                 </p>
                               )}
                             </div>
-                            {claim.source_url && (
-                              <div className="mt-2.5 pt-2 border-t border-gray-200/60">
-                                <a
-                                  href={claim.source_url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 underline truncate max-w-full"
-                                >
-                                  <ExternalLink size={10} /> Source link
-                                </a>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
-                )}
-
-                {/* Research Report Sections */}
-                {report && (
-                  <div className="mt-6 border-t border-gray-100 pt-5">
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
-                      Detailed Research Briefing
-                    </h4>
-                    <div className="grid gap-5 md:grid-cols-2">
-                      {REPORT_SECTIONS.map(
-                        ([key, heading]) =>
-                          report[key]?.length > 0 && (
-                            <div key={key} className="rounded-xl bg-[#F5F3E9] p-4">
-                              <h5 className="text-xs font-bold uppercase tracking-widest text-gray-700 mb-2">
-                                {heading}
-                              </h5>
-                              <ul className="space-y-2 text-xs text-gray-700">
-                                {report[key].map((claim, claimIndex) => (
-                                  <li key={`${key}-${claimIndex}`}>
-                                    <p className="leading-relaxed">{claim.text}</p>
-                                    {claim.source_urls?.map((url) => {
-                                      let hostname = url;
-                                      try {
-                                        hostname = new URL(url).hostname;
-                                      } catch {
-                                        hostname = url;
-                                      }
-                                      return (
-                                        <a
-                                          key={url}
-                                          href={url}
-                                          target="_blank"
-                                          rel="noreferrer"
-                                          className="mt-0.5 inline-block text-blue-600 underline underline-offset-2 hover:text-blue-800"
-                                        >
-                                          Source ({hostname})
-                                        </a>
-                                      );
-                                    })}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* All Web Content / Evidence Read */}
-                {report?.source_evidence?.length > 0 && (
-                  <section className="mt-6 border-t border-gray-100 pt-5">
-                    <h4 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-3">
-                      All Web Search Content & Pages Read
-                    </h4>
-                    <div className="space-y-3">
-                      {report.source_evidence.map((source, sIdx) => (
-                        <article
-                          key={`${source.url}-${sIdx}`}
-                          className="rounded-xl bg-[#F5F3E9] p-4"
-                        >
-                          <p className="text-[10px] font-bold uppercase tracking-widest text-gray-500">
-                            {source.source_type === "search_result"
-                              ? "Live search result citation"
-                              : "Web page read"}
-                          </p>
-                          <a
-                            href={source.url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="mt-1 block break-all text-xs font-bold text-blue-600 underline underline-offset-2 hover:text-blue-800"
-                          >
-                            {source.url}
-                          </a>
-                          <p className="mt-2 text-xs leading-5 text-gray-700">
-                            {source.content}
-                          </p>
-                        </article>
-                      ))}
-                    </div>
-                  </section>
                 )}
               </article>
             );
@@ -2271,7 +2092,7 @@ export default function Vault() {
     <div className="w-full pb-10 pt-2">
       <div role="tablist" aria-label="Vault sections" className="mb-7 inline-flex max-w-full overflow-x-auto rounded-xl bg-[#F5F3E9] p-1 gap-1">
         <button type="button" role="tab" aria-selected={activeTab === "vault"} onClick={() => setActiveTab("vault")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "vault" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><Bookmark size={14} /> Vault</button>
-        <button type="button" role="tab" aria-selected={activeTab === "research"} onClick={() => setActiveTab("research")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "research" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><List size={14} /> Verify</button>
+        <button type="button" role="tab" aria-selected={activeTab === "research"} onClick={() => setActiveTab("research")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "research" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><Sparkles size={14} /> Analyze</button>
         <button type="button" role="tab" aria-selected={activeTab === "shelf"} onClick={() => setActiveTab("shelf")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "shelf" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><Link2 size={14} /> Link Shelf</button>
         <button type="button" role="tab" aria-selected={activeTab === "calendar"} onClick={() => setActiveTab("calendar")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "calendar" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><CalendarDays size={14} /> Calendar</button>
       </div>
@@ -2282,7 +2103,7 @@ export default function Vault() {
         </div>
       )}
 
-      {activeTab === "research" ? <DeepFridgePage reels={reels} researchByReel={researchByReel} language={language} onResearch={handleResearch} onDelete={handleDelete} focusReelId={deepFridgeFocusId} /> : activeTab === "shelf" ? <LinkShelf links={savedLinks} dates={savedDates} onDeleteLink={handleDeleteLink} onDeleteDate={handleDeleteDate} /> : activeTab === "calendar" ? (
+      {activeTab === "research" ? <DeepFridgePage reels={reels} language={language} onDelete={handleDelete} focusReelId={deepFridgeFocusId} /> : activeTab === "shelf" ? <LinkShelf links={savedLinks} dates={savedDates} onDeleteLink={handleDeleteLink} onDeleteDate={handleDeleteDate} /> : activeTab === "calendar" ? (
         <section className="pt-2">
           <div className="mb-6">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">

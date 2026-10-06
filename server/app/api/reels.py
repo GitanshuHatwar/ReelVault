@@ -4,7 +4,21 @@ from app.config import get_settings
 from app.db import repo
 from app.deps import AuthUser, current_user
 from app.errors import NoContent, NotFound, RateLimited, UpstreamFailed
-from app.schemas.reels import DeepCookIn, DeepCookOut, LinkVaultEntryIn, LinkVaultEntryOut, ReelIn, ReelOut, SavedDateIn, SavedDateOut, SavedLinkIn, SavedLinkOut
+from app.schemas.reels import (
+    DeepCookIn,
+    DeepCookOut,
+    LinkVaultEntryIn,
+    LinkVaultEntryOut,
+    ReelIn,
+    ReelOut,
+    SavedDateIn,
+    SavedDateOut,
+    SavedLinkIn,
+    SavedLinkOut,
+    TavilySourceOut,
+    TavilyVerifyIn,
+    TavilyVerifyOut,
+)
 from app.services.deep_cook.pipeline import run_deep_cook
 from app.services.shallow_cook import save_reel
 from app.services.titles import reel_title
@@ -185,6 +199,62 @@ def get_deep_cook(reel_id: int, user: AuthUser = Depends(current_user)):
     if deep_cook is None:
         raise NotFound("research not found")
     return deep_cook
+
+
+@router.post("/{reel_id}/verify-tavily", response_model=TavilyVerifyOut)
+def verify_reel_with_tavily(
+    reel_id: int,
+    body: TavilyVerifyIn = Body(default_factory=TavilyVerifyIn),
+    user: AuthUser = Depends(current_user),
+):
+    """Verify reel content, summary, and keywords using Tavily real-time web search platform."""
+    settings = get_settings()
+    if not settings.tavily_api_key:
+        raise UpstreamFailed("Tavily API key is not configured on the server.")
+
+    reel = repo.get_user_reel(user.id, reel_id)
+    post = _source_post(reel) if reel else {}
+    raw = post.get("raw") if isinstance(post.get("raw"), dict) else {}
+    analysis = raw.get("reel_analysis") or {}
+
+    query = (body.query or "").strip()
+    if not query:
+        title = (body.title or (reel_title(post) if post else None) or "").strip()
+        summary = (body.summary or analysis.get("summary") or "").strip()
+        keywords = body.keywords or analysis.get("tags") or []
+        keyword_str = " ".join(str(k) for k in keywords[:3])
+        if title and keyword_str:
+            query = f"{title} {keyword_str}"
+        elif title:
+            query = title
+        elif summary:
+            query = summary[:120]
+        else:
+            query = "opportunity verification"
+
+    try:
+        from tavily import TavilyClient
+        client = TavilyClient(api_key=settings.tavily_api_key)
+        res = client.search(query=query, max_results=3, search_depth="basic")
+        raw_results = res.get("results", [])[:3]
+        sources = [
+            TavilySourceOut(
+                title=r.get("title") or "Web Source",
+                url=r.get("url") or "",
+                content=r.get("content") or "",
+                score=r.get("score"),
+            )
+            for r in raw_results
+            if r.get("url")
+        ]
+        return TavilyVerifyOut(
+            verified=len(sources) > 0,
+            query=query,
+            sources=sources,
+            summary=f"Found {len(sources)} verified web source(s) via Tavily search.",
+        )
+    except Exception as exc:
+        raise UpstreamFailed(f"Tavily search failed: {exc}")
 
 
 @router.get("", response_model=list[ReelOut])

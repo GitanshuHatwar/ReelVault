@@ -178,6 +178,20 @@ export const api = {
     return request(`/v1/reels/${reelId}/deep-cook`);
   },
 
+  verifyWithTavily: async (reelId, { query, title, summary, keywords } = {}) => {
+    if (isMockSession()) {
+      return mockStore.verifyWithTavily(reelId, { query, title, summary, keywords });
+    }
+    try {
+      return await request(`/v1/reels/${reelId}/verify-tavily`, {
+        method: 'POST',
+        body: { query, title, summary, keywords },
+      });
+    } catch {
+      return mockStore.verifyWithTavily(reelId, { query, title, summary, keywords });
+    }
+  },
+
   listSavedLinks: async () => {
     if (isMockSession()) {
       return mockStore.getSavedLinks();

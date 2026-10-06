@@ -14,11 +14,17 @@ _SUPABASE_SERVICE_PATHS = {
 }
 
 
+from pathlib import Path
+
+_SERVER_DIR = Path(__file__).resolve().parent.parent
+_ENV_FILE = _SERVER_DIR / ".env"
+
+
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(_ENV_FILE, ".env"), extra="ignore")
 
     app_env: str = "dev"
-    cors_origins: list[str] = [
+    cors_origins: list[str] | str = [
         "http://localhost:3000",
         "http://127.0.0.1:5173",
         "http://localhost:5173",
@@ -26,11 +32,11 @@ class Settings(BaseSettings):
         "http://localhost:5174",
     ]
 
-    supabase_url: str
-    supabase_anon_key: str
-    supabase_service_role_key: str
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+    supabase_service_role_key: str = ""
 
-    socialkit_api_key: str
+    socialkit_api_key: str = ""
     socialkit_base_url: str = "https://api.socialkit.dev"
     tavily_api_key: str = ""
     gemini_api_key: str = ""
@@ -52,6 +58,26 @@ class Settings(BaseSettings):
     stale_job_minutes: int = 15
     default_timezone: str = "Asia/Kolkata"
 
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def normalize_cors_origins(cls, value: object) -> list[str]:
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return ["*"]
+            if value.startswith("[") and value.endswith("]"):
+                try:
+                    import json
+                    parsed = json.loads(value)
+                    if isinstance(parsed, list):
+                        return [str(item).strip() for item in parsed if str(item).strip()]
+                except Exception:
+                    pass
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return ["*"]
+
     @field_validator("supabase_url", mode="before")
     @classmethod
     def normalize_supabase_url(cls, value: object) -> object:
@@ -59,9 +85,13 @@ class Settings(BaseSettings):
         if not isinstance(value, str):
             return value
 
-        parsed = urlsplit(value.strip())
+        trimmed = value.strip()
+        if not trimmed:
+            return ""
+
+        parsed = urlsplit(trimmed)
         if parsed.path.rstrip("/") not in _SUPABASE_SERVICE_PATHS:
-            return value.strip().rstrip("/")
+            return trimmed.rstrip("/")
 
         # supabase-py appends service paths such as `/rest/v1` itself.
         return urlunsplit((parsed.scheme, parsed.netloc, "", "", ""))

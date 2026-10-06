@@ -11,9 +11,13 @@ from app.errors import register_error_handlers
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 app = FastAPI(title="ReelVault API", version="0.3.0")
+cors_origins = get_settings().cors_origins
+allow_origin_regex = None if ("*" in cors_origins) else r"^https://.*\.vercel\.app$"
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_settings().cors_origins,
+    allow_origins=cors_origins,
+    allow_origin_regex=allow_origin_regex,
     allow_methods=["*"],
     allow_headers=["*"],
 )
