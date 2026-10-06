@@ -12,6 +12,7 @@ import {
   Check,
   CheckCircle2,
   ChevronDown,
+  ChevronUp,
   Clock,
   Compass,
   Copy,
@@ -19,9 +20,11 @@ import {
   Eye,
   FileText,
   Globe,
+  HelpCircle,
   Link2,
   List,
   LoaderCircle,
+  Pencil,
   Plus,
   Search,
   Share2,
@@ -37,6 +40,7 @@ import { useAuth } from "../auth/useAuth";
 import { useProfile } from "../auth/useProfile";
 import SavedCalendar, { dateKey } from "../components/calendar/SavedCalendar";
 import { useLanguage } from "../preferences/LanguageContext";
+import { resolveCompanyLink, isGenericGoogleUrl, KNOWN_COMPANIES } from "../utils/companyLinks";
 
 const ACTIVE_STATUSES = new Set([
   "queued",
@@ -417,6 +421,7 @@ function ExtractionResultCard({
   onSaveDate,
   onDelete,
   onAnalyze,
+  onUpdateTitle,
   savedLinks = [],
   savedDates = [],
   isForYouActive,
@@ -431,6 +436,26 @@ function ExtractionResultCard({
   const [showAddManualLink, setShowAddManualLink] = useState(false);
   const [manualLinkUrl, setManualLinkUrl] = useState("");
   const [manualLinkLabel, setManualLinkLabel] = useState("");
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState(reel.title || "");
+
+  useEffect(() => {
+    setEditedTitle(reel.title || "");
+  }, [reel.title]);
+
+  const handleTitleSubmit = (e) => {
+    e?.preventDefault();
+    const clean = (editedTitle || "").trim();
+    if (clean && clean !== reel.title) {
+      onUpdateTitle?.(reel.reel_id, clean);
+    }
+    setIsEditingTitle(false);
+  };
+
+  const handleCancelTitle = () => {
+    setEditedTitle(reel.title || "");
+    setIsEditingTitle(false);
+  };
 
   const isSavedToShelf = (url) => {
     if (!url) return false;
@@ -469,45 +494,68 @@ function ExtractionResultCard({
     }
   }
 
-  // Look for official registration or application URL
+  // Look for official registration or application URL / Company reference link
   let officialRegUrl = null;
   let officialRegLabel = null;
 
-  // 1. Direct registration / apply links
+  // 1. Direct registration / apply links (excluding generic google.com)
   const regLink = links.find(
     (l) =>
-      /register|registration|apply|application|form|portal/i.test(l.url) ||
-      /register|apply|form|portal/i.test(l.contextLabel || "")
+      !isGenericGoogleUrl(l.url) &&
+      (/register|registration|apply|application|form|portal/i.test(l.url) ||
+        /register|apply|form|portal/i.test(l.contextLabel || ""))
   );
 
   if (regLink) {
     officialRegUrl = regLink.url;
     officialRegLabel = regLink.contextLabel || "Official Registration Page";
   } else {
-    // 2. Official sources or resources from analysis
-    const sourceWithUrl = (analysis.sources || []).find(
-      (s) => s.url && !/(instagram\.com|tiktok\.com|youtube\.com|youtu\.be)/i.test(s.url)
-    );
-    const resourceWithUrl = (analysis.resources || []).find(
-      (r) => r.url && !/(instagram\.com|tiktok\.com|youtube\.com|youtu\.be)/i.test(r.url)
-    );
-
-    if (sourceWithUrl) {
-      officialRegUrl = sourceHref(sourceWithUrl.url);
-      officialRegLabel = sourceWithUrl.name || "Official Portal";
-    } else if (resourceWithUrl) {
-      officialRegUrl = sourceHref(resourceWithUrl.url);
-      officialRegLabel = resourceWithUrl.label || "Official Portal";
+    // 2. Check for company or organization link found in reel text (Microsoft, Adobe, Paytm, etc.)
+    const companyMatch = resolveCompanyLink(reel);
+    if (companyMatch) {
+      officialRegUrl = companyMatch.url;
+      officialRegLabel = companyMatch.label;
     } else {
-      // 3. First non-social detected link
-      const firstNonSocial = links.find(
-        (l) => !/(instagram\.com|tiktok\.com|youtube\.com|youtu\.be)/i.test(l.url)
+      // 3. Official sources or resources from analysis (excluding generic google.com)
+      const sourceWithUrl = (analysis.sources || []).find(
+        (s) =>
+          s.url &&
+          !isGenericGoogleUrl(s.url) &&
+          !/(instagram\.com|tiktok\.com|youtube\.com|youtu\.be)/i.test(s.url)
       );
-      if (firstNonSocial) {
-        officialRegUrl = firstNonSocial.url;
-        officialRegLabel = `Official Page (${firstNonSocial.hostname})`;
+      const resourceWithUrl = (analysis.resources || []).find(
+        (r) =>
+          r.url &&
+          !isGenericGoogleUrl(r.url) &&
+          !/(instagram\.com|tiktok\.com|youtube\.com|youtu\.be)/i.test(r.url)
+      );
+
+      if (sourceWithUrl) {
+        officialRegUrl = sourceHref(sourceWithUrl.url);
+        officialRegLabel = sourceWithUrl.name || "Official Portal";
+      } else if (resourceWithUrl) {
+        officialRegUrl = sourceHref(resourceWithUrl.url);
+        officialRegLabel = resourceWithUrl.label || "Official Portal";
+      } else {
+        // 4. First non-social detected link that is not generic google.com
+        const firstNonSocial = links.find(
+          (l) =>
+            !isGenericGoogleUrl(l.url) &&
+            !/(instagram\.com|tiktok\.com|youtube\.com|youtu\.be)/i.test(l.url)
+        );
+        if (firstNonSocial) {
+          officialRegUrl = firstNonSocial.url;
+          officialRegLabel = `Official Page (${firstNonSocial.hostname})`;
+        }
       }
     }
+  }
+
+  // Ensure google.com is never given directly as the reference link
+  if (isGenericGoogleUrl(officialRegUrl)) {
+    const fallbackComp = resolveCompanyLink(reel);
+    officialRegUrl = fallbackComp ? fallbackComp.url : null;
+    officialRegLabel = fallbackComp ? fallbackComp.label : null;
   }
 
   const webSearchQuery = schemeName
@@ -610,10 +658,56 @@ function ExtractionResultCard({
         </p>
       )}
 
-      {/* 1. MAIN VISIBLE CONTENT: ONLY TITLE & SUMMARY */}
-      <h3 className="text-xl sm:text-2xl font-bold text-[#1a1a1a] leading-snug">
-        {reel.title}
-      </h3>
+      {/* 1. MAIN VISIBLE CONTENT: TITLE WITH PEN ICON ON LEFT & SUMMARY */}
+      {isEditingTitle ? (
+        <form onSubmit={handleTitleSubmit} className="flex items-center gap-2 mb-2">
+          <input
+            type="text"
+            value={editedTitle}
+            onChange={(e) => setEditedTitle(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") handleCancelTitle();
+            }}
+            className="flex-1 rounded-xl border-2 border-[#114b43] bg-white px-3 py-1.5 text-lg sm:text-xl font-bold text-[#1a1a1a] focus:outline-none focus:ring-2 focus:ring-[#114b43]/30"
+            autoFocus
+          />
+          <button
+            type="submit"
+            className="rounded-xl bg-[#114b43] p-2 text-white hover:bg-[#0c3630] transition-colors shadow-xs"
+            title="Save title"
+            aria-label="Save title"
+          >
+            <Check size={18} />
+          </button>
+          <button
+            type="button"
+            onClick={handleCancelTitle}
+            className="rounded-xl bg-gray-100 p-2 text-gray-600 hover:bg-gray-200 transition-colors"
+            title="Cancel"
+            aria-label="Cancel"
+          >
+            <X size={18} />
+          </button>
+        </form>
+      ) : (
+        <div className="flex items-start gap-2.5 group mb-1">
+          <button
+            type="button"
+            onClick={() => {
+              setEditedTitle(reel.title || "");
+              setIsEditingTitle(true);
+            }}
+            className="mt-1 p-1.5 rounded-lg text-gray-400 hover:text-[#114b43] hover:bg-[#F5F3E9] transition-colors shrink-0"
+            title="Edit reel title"
+            aria-label="Edit reel title"
+          >
+            <Pencil size={18} />
+          </button>
+          <h3 className="text-xl sm:text-2xl font-bold text-[#1a1a1a] leading-snug flex-1">
+            {reel.title}
+          </h3>
+        </div>
+      )}
 
       <div className="mt-3 text-sm sm:text-base leading-relaxed text-gray-700">
         {renderHighlightedSummary(summary, [
@@ -1172,8 +1266,63 @@ function ExtractionResultCard({
 }
 
 
-function DeepFridgePage({ reels, language, onDelete, focusReelId }) {
+function getVerdictConfig(verdict) {
+  const v = String(verdict || "Unverified").toLowerCase();
+  if (v.includes("true") && !v.includes("partially")) {
+    return {
+      label: "True — Verified",
+      badgeClass: "bg-emerald-100 text-emerald-800 border-emerald-300",
+      borderClass: "border-emerald-200",
+      cardBg: "bg-emerald-50/40",
+      icon: CheckCircle2,
+      iconColor: "text-emerald-600",
+      dotBg: "bg-emerald-500",
+    };
+  }
+  if (v.includes("partially")) {
+    return {
+      label: "Partially True",
+      badgeClass: "bg-amber-100 text-amber-900 border-amber-300",
+      borderClass: "border-amber-200",
+      cardBg: "bg-amber-50/40",
+      icon: AlertCircle,
+      iconColor: "text-amber-600",
+      dotBg: "bg-amber-500",
+    };
+  }
+  if (v.includes("false")) {
+    return {
+      label: "False — Disputed",
+      badgeClass: "bg-rose-100 text-rose-800 border-rose-300",
+      borderClass: "border-rose-200",
+      cardBg: "bg-rose-50/40",
+      icon: XCircle,
+      iconColor: "text-rose-600",
+      dotBg: "bg-rose-500",
+    };
+  }
+  return {
+    label: "Unverified",
+    badgeClass: "bg-slate-100 text-slate-800 border-slate-300",
+    borderClass: "border-slate-200",
+    cardBg: "bg-slate-50/40",
+    icon: HelpCircle,
+    iconColor: "text-slate-600",
+    dotBg: "bg-slate-400",
+  };
+}
+
+
+function DeepFridgePage({
+  reels,
+  language,
+  onDelete,
+  focusReelId,
+  autoVerifyReelId,
+  onClearAutoVerify,
+}) {
   const [expandedTranscripts, setExpandedTranscripts] = useState({});
+  const [minimizedVerifications, setMinimizedVerifications] = useState({});
   const [verifyingMap, setVerifyingMap] = useState({});
   const [resultsMap, setResultsMap] = useState(() => {
     try {
@@ -1194,8 +1343,25 @@ function DeepFridgePage({ reels, language, onDelete, focusReelId }) {
     }
   }, [focusReelId]);
 
+  // When navigated via Analyze button, start Tavily verification directly
+  useEffect(() => {
+    if (!autoVerifyReelId) return;
+    const target = (reels || []).find((r) => r.reel_id === autoVerifyReelId);
+    if (target && !verifyingMap[autoVerifyReelId]) {
+      handleVerifyContent(target);
+      onClearAutoVerify?.();
+    }
+  }, [autoVerifyReelId, reels]);
+
   const toggleTranscript = (reelId) => {
     setExpandedTranscripts((prev) => ({
+      ...prev,
+      [reelId]: !prev[reelId],
+    }));
+  };
+
+  const toggleVerificationMinimize = (reelId) => {
+    setMinimizedVerifications((prev) => ({
       ...prev,
       [reelId]: !prev[reelId],
     }));
@@ -1206,27 +1372,36 @@ function DeepFridgePage({ reels, language, onDelete, focusReelId }) {
     setVerifyingMap((prev) => ({ ...prev, [reelId]: true }));
     setErrorMap((prev) => ({ ...prev, [reelId]: null }));
 
-    const title = reel.title || "";
-    const summary = reel.analysis?.summary || reel.caption || "";
-    const keywords = reel.analysis?.tags || [];
-    const keywordStr = keywords.slice(0, 3).join(" ");
+    const entireSummary = (
+      reel.analysis?.summary ||
+      reel.caption ||
+      reel.transcript ||
+      reel.title ||
+      ""
+    ).trim();
 
-    let query = "";
-    if (title && keywordStr) {
-      query = `${title} ${keywordStr}`;
-    } else if (title) {
-      query = title;
-    } else if (summary) {
-      query = summary.slice(0, 100);
-    } else {
-      query = "opportunity verification";
+    const transcriptText = (reel.transcript || reel.caption || "").trim();
+    const title = (reel.title || "").trim();
+    const keywords = reel.analysis?.tags || [];
+
+    if (!entireSummary && !transcriptText && !title) {
+      setErrorMap((prev) => ({
+        ...prev,
+        [reelId]: "This reel has no summary, transcript, or title content to verify.",
+      }));
+      setVerifyingMap((prev) => ({ ...prev, [reelId]: false }));
+      return;
     }
+
+    // Send the entire reel summary for Tavily search (Requirement 4)
+    const query = entireSummary || title || "opportunity verification";
 
     try {
       const res = await api.verifyWithTavily(reelId, {
         query,
         title,
-        summary,
+        summary: entireSummary,
+        transcript: transcriptText,
         keywords,
       });
       setResultsMap((prev) => {
@@ -1236,6 +1411,8 @@ function DeepFridgePage({ reels, language, onDelete, focusReelId }) {
         } catch {}
         return next;
       });
+      // Expand verification section by default upon completion
+      setMinimizedVerifications((prev) => ({ ...prev, [reelId]: false }));
     } catch (err) {
       setErrorMap((prev) => ({
         ...prev,
@@ -1279,7 +1456,10 @@ function DeepFridgePage({ reels, language, onDelete, focusReelId }) {
             const isExpanded = !!expandedTranscripts[reelId];
             const isVerifying = !!verifyingMap[reelId];
             const tavilyResult = resultsMap[reelId];
-            const hasVerified = !!tavilyResult?.verified;
+            const hasVerified = Boolean(tavilyResult);
+            const isMinimized = Boolean(minimizedVerifications[reelId]);
+            const verdictConfig = getVerdictConfig(tavilyResult?.verdict);
+            const VerdictIcon = verdictConfig.icon;
             const summaryText = reel.analysis?.summary || reel.caption || "No summary available.";
 
             return (
@@ -1425,9 +1605,9 @@ function DeepFridgePage({ reels, language, onDelete, focusReelId }) {
                   </div>
 
                   {hasVerified && (
-                    <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-100 border border-emerald-300 px-3 py-1 text-xs font-bold text-emerald-800">
-                      <CheckCircle2 size={14} className="text-emerald-600" />
-                      Content Verified
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${verdictConfig.badgeClass}`}>
+                      <VerdictIcon size={14} className={verdictConfig.iconColor} />
+                      {verdictConfig.label}
                     </span>
                   )}
                 </div>
@@ -1441,7 +1621,7 @@ function DeepFridgePage({ reels, language, onDelete, focusReelId }) {
                         Searching & Verifying Truth with Tavily…
                       </p>
                       <p className="text-xs text-emerald-800">
-                        Querying real-time web sources using title, summary, and keywords.
+                        Querying real-time web sources using entire summary, claims, and keywords.
                       </p>
                     </div>
                   </div>
@@ -1460,80 +1640,147 @@ function DeepFridgePage({ reels, language, onDelete, focusReelId }) {
 
                 {/* Tavily Verified Results Card & Top 3 Sources */}
                 {hasVerified && tavilyResult && (
-                  <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50/40 p-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-emerald-200/60">
+                  <div className={`mt-5 rounded-2xl border ${verdictConfig.borderClass} ${verdictConfig.cardBg} p-5 transition-all`}>
+                    {/* Header - Always visible whether minimized or expanded */}
+                    <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2.5">
-                        <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-600 text-white shadow-2xs">
-                          <CheckCircle2 size={18} />
+                        <div className={`flex h-8 w-8 items-center justify-center rounded-full border ${verdictConfig.badgeClass} shadow-2xs`}>
+                          <VerdictIcon size={17} className={verdictConfig.iconColor} />
                         </div>
                         <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-emerald-950">
-                              Content Verified
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-bold text-sm text-gray-950">
+                              Verification Result
                             </span>
-                            <span className="rounded-full bg-emerald-200/90 px-2 py-0.5 text-[10px] font-bold text-emerald-900 uppercase tracking-wider">
-                              Tavily Platform
+                            <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-bold ${verdictConfig.badgeClass}`}>
+                              <span className={`h-1.5 w-1.5 rounded-full ${verdictConfig.dotBg}`} />
+                              {verdictConfig.label}
+                            </span>
+                            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-900 uppercase tracking-wider border border-emerald-200">
+                              Tavily Search
                             </span>
                           </div>
                           {tavilyResult.query && (
-                            <p className="text-[11px] text-emerald-800 mt-0.5">
-                              Searched: <span className="font-semibold italic">"{tavilyResult.query}"</span>
+                            <p className="text-[11px] text-gray-600 mt-0.5 max-w-xl truncate">
+                              Searched: <span className="font-medium italic">"{tavilyResult.query}"</span>
                             </p>
                           )}
                         </div>
                       </div>
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
-                        <CheckCircle2 size={12} className="text-emerald-600" />
-                        Top 3 Sources Found
-                      </span>
-                    </div>
 
-                    {/* Top 3 Web Sources */}
-                    <div className="mt-4">
-                      <h4 className="text-xs font-bold uppercase tracking-wider text-[#114b43] mb-3 flex items-center gap-1.5">
-                        <Globe size={13} /> Top 3 Sources from the Web
-                      </h4>
-                      <div className="space-y-3">
-                        {(tavilyResult.sources || []).slice(0, 3).map((source, sIdx) => {
-                          let displayHost = "";
-                          try {
-                            displayHost = new URL(source.url).hostname.replace("www.", "");
-                          } catch {
-                            displayHost = source.url;
-                          }
-                          return (
-                            <div
-                              key={`${source.url}-${sIdx}`}
-                              className="rounded-xl border border-gray-200 bg-white p-4 shadow-2xs hover:border-[#114b43]/40 transition-colors"
-                            >
-                              <div className="flex flex-wrap items-start justify-between gap-2 mb-1.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#114b43] text-[10px] font-bold text-white shrink-0">
-                                    {sIdx + 1}
-                                  </span>
-                                  <h5 className="font-bold text-sm text-gray-900 leading-snug">
-                                    {source.title || `Web Source #${sIdx + 1}`}
-                                  </h5>
-                                </div>
-                                <a
-                                  href={source.url}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition-colors border border-emerald-200/70 shrink-0"
-                                >
-                                  <ExternalLink size={12} /> {displayHost}
-                                </a>
-                              </div>
-                              {source.content && (
-                                <p className="mt-1.5 text-xs text-gray-600 leading-relaxed">
-                                  {source.content}
-                                </p>
-                              )}
-                            </div>
-                          );
-                        })}
+                      <div className="flex items-center gap-2">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-xs font-bold text-gray-700 border border-gray-200 shadow-2xs">
+                          <Globe size={12} className="text-[#114b43]" />
+                          {(tavilyResult.sources || []).slice(0, 3).length} Sources Found
+                        </span>
+
+                        {/* Minimize / Expand Toggle Button */}
+                        <button
+                          type="button"
+                          onClick={() => toggleVerificationMinimize(reelId)}
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-gray-300 bg-white px-3 py-1.5 text-xs font-bold text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors shadow-2xs cursor-pointer"
+                          aria-expanded={!isMinimized}
+                          title={isMinimized ? "Expand verification details" : "Minimize verification details"}
+                        >
+                          <span>{isMinimized ? "Expand Details" : "Minimize"}</span>
+                          <ChevronDown
+                            size={14}
+                            className={`transition-transform duration-200 ${isMinimized ? "" : "rotate-180"}`}
+                          />
+                        </button>
                       </div>
                     </div>
+
+                    {/* Detailed Content: Collapsible via Minimize / Expand */}
+                    {!isMinimized && (
+                      <div className="mt-4 pt-4 border-t border-gray-200/80 space-y-4">
+                        {/* Evidence analysis & explanation */}
+                        {tavilyResult.explanation && (
+                          <div className="rounded-xl border border-white/80 bg-white/95 p-4 shadow-2xs">
+                            <div className="flex items-center gap-1.5 mb-1.5">
+                              <Sparkles size={14} className="text-[#114b43]" />
+                              <span className="text-xs font-bold uppercase tracking-wider text-[#114b43]">
+                                Evidence Analysis & Explanation
+                              </span>
+                            </div>
+                            <p className="text-xs sm:text-sm text-gray-700 leading-relaxed font-medium">
+                              {tavilyResult.explanation}
+                            </p>
+                          </div>
+                        )}
+
+                        {/* Verified Claims */}
+                        {Array.isArray(tavilyResult.claims) && tavilyResult.claims.length > 0 && (
+                          <div className="rounded-xl border border-white/80 bg-white/80 p-3.5 shadow-2xs">
+                            <p className="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">
+                              Verified Claims Cross-Checked:
+                            </p>
+                            <ul className="space-y-1.5">
+                              {tavilyResult.claims.map((claim, cIdx) => (
+                                <li key={cIdx} className="flex items-start gap-2 text-xs text-gray-700">
+                                  <span className="text-emerald-600 font-bold shrink-0 mt-0.5">•</span>
+                                  <span className="leading-snug">{claim}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+
+                        {/* Top 3 Web Sources */}
+                        <div>
+                          <h4 className="text-xs font-bold uppercase tracking-wider text-[#114b43] mb-2.5 flex items-center gap-1.5">
+                            <Globe size={13} /> Top 3 Sources from the Web
+                          </h4>
+
+                          {(tavilyResult.sources || []).length === 0 ? (
+                            <p className="text-xs text-gray-500 italic p-3 bg-white rounded-xl border border-gray-200">
+                              No external web sources retrieved for this opportunity.
+                            </p>
+                          ) : (
+                            <div className="space-y-2.5">
+                              {(tavilyResult.sources || []).slice(0, 3).map((source, sIdx) => {
+                                let displayHost = "";
+                                try {
+                                  displayHost = new URL(source.url).hostname.replace("www.", "");
+                                } catch {
+                                  displayHost = source.url;
+                                }
+                                const shortSummary = source.summary || source.content || "Verified web evidence.";
+
+                                return (
+                                  <div
+                                    key={`${source.url}-${sIdx}`}
+                                    className="rounded-xl border border-gray-200 bg-white p-3.5 shadow-2xs hover:border-[#114b43]/40 transition-colors"
+                                  >
+                                    <div className="flex flex-wrap items-start justify-between gap-2 mb-1.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#114b43] text-[10px] font-bold text-white shrink-0">
+                                          {sIdx + 1}
+                                        </span>
+                                        <h5 className="font-bold text-xs sm:text-sm text-gray-900 leading-snug">
+                                          {source.title || `Web Source #${sIdx + 1}`}
+                                        </h5>
+                                      </div>
+                                      <a
+                                        href={source.url}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="inline-flex items-center gap-1 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition-colors border border-emerald-200/70 shrink-0"
+                                      >
+                                        <ExternalLink size={12} /> {displayHost}
+                                      </a>
+                                    </div>
+                                    <p className="mt-1 text-xs text-gray-600 leading-relaxed line-clamp-3">
+                                      {shortSummary}
+                                    </p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </article>
@@ -1824,7 +2071,21 @@ export default function Vault() {
           api.listLinkVault().catch(() => []),
         ]);
         if (cancelled) return;
-        setReels(reelsData);
+        let storedTitles = {};
+        try {
+          storedTitles = JSON.parse(localStorage.getItem("reelvault_custom_titles") || "{}");
+        } catch {}
+        const enrichedReels = (reelsData || []).map((r) => {
+          if (storedTitles[r.reel_id]) {
+            return {
+              ...r,
+              title: storedTitles[r.reel_id],
+              analysis: r.analysis ? { ...r.analysis, title: storedTitles[r.reel_id] } : r.analysis,
+            };
+          }
+          return r;
+        });
+        setReels(enrichedReels);
         setSavedLinks(links);
         setSavedDates(dates);
         setLinkVaultEntries(entries);
@@ -2072,10 +2333,42 @@ export default function Vault() {
   };
 
   const [deepFridgeFocusId, setDeepFridgeFocusId] = useState(null);
+  const [autoVerifyReelId, setAutoVerifyReelId] = useState(null);
+
+  const handleUpdateTitle = async (reelId, nextTitle) => {
+    const cleanTitle = (nextTitle || "").trim();
+    if (!cleanTitle) return;
+
+    setReels((prev) =>
+      prev.map((r) => {
+        if (r.reel_id === reelId) {
+          const updated = { ...r, title: cleanTitle };
+          if (updated.analysis) {
+            updated.analysis = { ...updated.analysis, title: cleanTitle };
+          }
+          return updated;
+        }
+        return r;
+      })
+    );
+
+    try {
+      const stored = JSON.parse(localStorage.getItem("reelvault_custom_titles") || "{}");
+      stored[reelId] = cleanTitle;
+      localStorage.setItem("reelvault_custom_titles", JSON.stringify(stored));
+    } catch {}
+
+    try {
+      await api.updateReelTitle(reelId, cleanTitle);
+    } catch (err) {
+      console.warn("Could not save reel title:", err);
+    }
+  };
 
   const handleAnalyze = (reel) => {
     setActiveTab("research");
     setDeepFridgeFocusId(reel.reel_id);
+    setAutoVerifyReelId(reel.reel_id);
     setTimeout(() => {
       const element = document.getElementById(`deep-fridge-reel-${reel.reel_id}`);
       if (element) {
@@ -2092,7 +2385,7 @@ export default function Vault() {
     <div className="w-full pb-10 pt-2">
       <div role="tablist" aria-label="Vault sections" className="mb-7 inline-flex max-w-full overflow-x-auto rounded-xl bg-[#F5F3E9] p-1 gap-1">
         <button type="button" role="tab" aria-selected={activeTab === "vault"} onClick={() => setActiveTab("vault")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "vault" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><Bookmark size={14} /> Vault</button>
-        <button type="button" role="tab" aria-selected={activeTab === "research"} onClick={() => setActiveTab("research")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "research" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><Sparkles size={14} /> Analyze</button>
+        <button type="button" role="tab" aria-selected={activeTab === "research"} onClick={() => setActiveTab("research")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "research" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><Sparkles size={14} /> Analyze & Verify</button>
         <button type="button" role="tab" aria-selected={activeTab === "shelf"} onClick={() => setActiveTab("shelf")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "shelf" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><Link2 size={14} /> Link Shelf</button>
         <button type="button" role="tab" aria-selected={activeTab === "calendar"} onClick={() => setActiveTab("calendar")} className={`inline-flex shrink-0 whitespace-nowrap items-center gap-2 rounded-lg px-4 py-2 text-xs font-bold uppercase tracking-widest transition-colors ${activeTab === "calendar" ? "bg-white text-[#114b43] shadow-sm" : "text-gray-500 hover:text-[#114b43]"}`}><CalendarDays size={14} /> Calendar</button>
       </div>
@@ -2103,7 +2396,7 @@ export default function Vault() {
         </div>
       )}
 
-      {activeTab === "research" ? <DeepFridgePage reels={reels} language={language} onDelete={handleDelete} focusReelId={deepFridgeFocusId} /> : activeTab === "shelf" ? <LinkShelf links={savedLinks} dates={savedDates} onDeleteLink={handleDeleteLink} onDeleteDate={handleDeleteDate} /> : activeTab === "calendar" ? (
+      {activeTab === "research" ? <DeepFridgePage reels={reels} language={language} onDelete={handleDelete} focusReelId={deepFridgeFocusId} autoVerifyReelId={autoVerifyReelId} onClearAutoVerify={() => setAutoVerifyReelId(null)} /> : activeTab === "shelf" ? <LinkShelf links={savedLinks} dates={savedDates} onDeleteLink={handleDeleteLink} onDeleteDate={handleDeleteDate} /> : activeTab === "calendar" ? (
         <section className="pt-2">
           <div className="mb-6">
             <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#114b43]">
@@ -2233,6 +2526,7 @@ export default function Vault() {
                   onSaveDate={handleSaveDate}
                   onDelete={handleDelete}
                   onAnalyze={handleAnalyze}
+                  onUpdateTitle={handleUpdateTitle}
                   savedLinks={savedLinks}
                   savedDates={savedDates}
                   isForYouActive={isForYouActive}

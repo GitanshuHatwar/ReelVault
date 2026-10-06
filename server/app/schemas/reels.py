@@ -8,6 +8,10 @@ class ReelIn(BaseModel):
     url: str = Field(min_length=10, max_length=2048)
 
 
+class ReelUpdateIn(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+
+
 class MentionedSource(BaseModel):
     name: str
     url: str | None = None
@@ -142,6 +146,7 @@ class LinkVaultEntryOut(LinkVaultEntryIn):
 class TavilySourceOut(BaseModel):
     title: str = Field(default="")
     url: str = Field(default="")
+    summary: str = Field(default="")
     content: str = Field(default="")
     score: float | None = None
 
@@ -150,11 +155,15 @@ class TavilyVerifyIn(BaseModel):
     query: str | None = None
     title: str | None = None
     summary: str | None = None
+    transcript: str | None = None
     keywords: list[str] | None = None
 
 
 class TavilyVerifyOut(BaseModel):
     verified: bool = Field(default=False)
+    verdict: str = Field(default="Unverified")
+    explanation: str = Field(default="")
+    claims: list[str] = Field(default_factory=list)
     query: str = Field(default="")
     sources: list[TavilySourceOut] = Field(default_factory=list)
     summary: str | None = None

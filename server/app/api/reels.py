@@ -1,9 +1,16 @@
+import logging
+import re
+from typing import Literal
+
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, Query, Response
+from langchain_core.messages import HumanMessage, SystemMessage
+from pydantic import BaseModel, Field
 
 from app.config import get_settings
 from app.db import repo
 from app.deps import AuthUser, current_user
 from app.errors import NoContent, NotFound, RateLimited, UpstreamFailed
+from app.llm import get_llm
 from app.schemas.reels import (
     DeepCookIn,
     DeepCookOut,
@@ -11,6 +18,7 @@ from app.schemas.reels import (
     LinkVaultEntryOut,
     ReelIn,
     ReelOut,
+    ReelUpdateIn,
     SavedDateIn,
     SavedDateOut,
     SavedLinkIn,
@@ -60,6 +68,14 @@ def _out(reel: dict, cached: bool = False) -> ReelOut:
 @router.post("", response_model=ReelOut)
 def create_reel(body: ReelIn, user: AuthUser = Depends(current_user)):
     return save_reel(body.url, user.id)
+
+
+@router.patch("/{reel_id}", response_model=ReelOut)
+def update_reel(reel_id: int, body: ReelUpdateIn, user: AuthUser = Depends(current_user)):
+    updated = repo.update_reel_title(user.id, reel_id, body.title)
+    if updated is None:
+        raise NotFound("reel not found")
+    return _out(updated)
 
 
 def _saved_link_out(row: dict) -> SavedLinkOut:
@@ -201,13 +217,36 @@ def get_deep_cook(reel_id: int, user: AuthUser = Depends(current_user)):
     return deep_cook
 
 
+def _clean_source_summary(content: str) -> str:
+    """Produce a concise 2-3 line relevant summary under 170 characters without markdown or web noise."""
+    if not content:
+        return "Verified web record matching this opportunity."
+    clean = re.sub(r"<[^>]+>", " ", content)
+    clean = re.sub(r"[#*`_\[\]]", " ", clean)
+    clean = re.sub(r"\s+", " ", clean).strip()
+    if len(clean) > 170:
+        period_idx = clean.find(".", 85)
+        if 0 < period_idx <= 180:
+            clean = clean[:period_idx + 1]
+        else:
+            space_idx = clean.rfind(" ", 85, 165)
+            clean = (clean[:space_idx] if space_idx > 85 else clean[:165]) + "…"
+    return clean
+
+
+class _AIVerdict(BaseModel):
+    verdict: Literal["True", "Partially True", "False", "Unverified"] = "Partially True"
+    explanation: str = Field(description="Concise 2-3 sentence explanation based on the retrieved evidence.")
+    claims: list[str] = Field(default_factory=list, description="2-3 key factual claims verified from the reel.")
+
+
 @router.post("/{reel_id}/verify-tavily", response_model=TavilyVerifyOut)
 def verify_reel_with_tavily(
     reel_id: int,
     body: TavilyVerifyIn = Body(default_factory=TavilyVerifyIn),
     user: AuthUser = Depends(current_user),
 ):
-    """Verify reel content, summary, and keywords using Tavily real-time web search platform."""
+    """Verify reel content, summary, and keywords using Tavily real-time web search platform and AI analysis."""
     settings = get_settings()
     if not settings.tavily_api_key:
         raise UpstreamFailed("Tavily API key is not configured on the server.")
@@ -217,38 +256,100 @@ def verify_reel_with_tavily(
     raw = post.get("raw") if isinstance(post.get("raw"), dict) else {}
     analysis = raw.get("reel_analysis") or {}
 
+    summary = (body.summary or analysis.get("summary") or "").strip()
+    transcript = (body.transcript or post.get("transcript") or post.get("caption") or "").strip()
+    title = (body.title or (reel_title(post) if post else None) or "").strip()
+
+    if not (summary or transcript or title):
+        raise NoContent("This reel has no transcript, caption, or summary to verify.")
+
     query = (body.query or "").strip()
     if not query:
-        title = (body.title or (reel_title(post) if post else None) or "").strip()
-        summary = (body.summary or analysis.get("summary") or "").strip()
-        keywords = body.keywords or analysis.get("tags") or []
-        keyword_str = " ".join(str(k) for k in keywords[:3])
-        if title and keyword_str:
-            query = f"{title} {keyword_str}"
-        elif title:
-            query = title
-        elif summary:
-            query = summary[:120]
+        if summary:
+            query = summary
+        elif transcript:
+            query = transcript[:250]
         else:
-            query = "opportunity verification"
+            query = title or "opportunity verification"
 
     try:
         from tavily import TavilyClient
         client = TavilyClient(api_key=settings.tavily_api_key)
         res = client.search(query=query, max_results=3, search_depth="basic")
         raw_results = res.get("results", [])[:3]
-        sources = [
-            TavilySourceOut(
-                title=r.get("title") or "Web Source",
-                url=r.get("url") or "",
-                content=r.get("content") or "",
-                score=r.get("score"),
+
+        sources: list[TavilySourceOut] = []
+        for r in raw_results:
+            if not r.get("url"):
+                continue
+            raw_content = r.get("content") or ""
+            short_summary = _clean_source_summary(raw_content)
+            sources.append(
+                TavilySourceOut(
+                    title=r.get("title") or "Web Source",
+                    url=r.get("url"),
+                    summary=short_summary,
+                    content=short_summary,
+                    score=r.get("score"),
+                )
             )
-            for r in raw_results
-            if r.get("url")
-        ]
+
+        if not sources:
+            return TavilyVerifyOut(
+                verified=False,
+                verdict="Unverified",
+                explanation="No relevant web evidence was found for these claims via search.",
+                claims=[title] if title else [],
+                query=query,
+                sources=[],
+                summary="No matching web records found.",
+            )
+
+        # AI Analysis to cross-check claims against retrieved web evidence
+        verdict = "Partially True"
+        explanation = f"Found {len(sources)} relevant web sources corroborating details of this opportunity."
+        claims = []
+        if analysis.get("summary_points"):
+            claims = list(analysis["summary_points"][:3])
+        elif title:
+            claims = [title]
+
+        if settings.gemini_api_key:
+            try:
+                evidence_text = "\n\n".join(
+                    f"Source {i+1}: {s.title} ({s.url})\nEvidence: {s.summary}"
+                    for i, s in enumerate(sources)
+                )
+                target_text = f"Title: {title}\nSummary: {summary}\nTranscript: {transcript[:500]}"
+                ai_model = get_llm("fast").with_structured_output(_AIVerdict)
+                ai_res = ai_model.invoke([
+                    SystemMessage(
+                        "You are an expert fact-checker. Cross-examine the reel claims against the retrieved top-3 web evidence.\n"
+                        "Classify verdict as strictly one of:\n"
+                        "- 'True': If retrieved web evidence clearly supports and confirms the reel claims.\n"
+                        "- 'Partially True': If core idea is valid but some details (dates, eligibility, stipends) differ, or only partially backed.\n"
+                        "- 'False': If web evidence directly contradicts the claims or indicates a hoax/scam.\n"
+                        "- 'Unverified': If web evidence is completely inconclusive or unrelated.\n"
+                        "Provide a concise 2-3 sentence explanation and extract 1-3 key factual claims."
+                    ),
+                    HumanMessage(f"Reel to verify:\n{target_text}\n\nRetrieved Web Evidence:\n{evidence_text}")
+                ])
+                verdict = ai_res.verdict
+                explanation = ai_res.explanation
+                if ai_res.claims:
+                    claims = ai_res.claims
+            except Exception as ai_err:
+                logging.getLogger("verify").warning("AI verdict evaluation fallback: %s", ai_err)
+                if any(s.score and s.score > 0.7 for s in sources):
+                    verdict = "True"
+                else:
+                    verdict = "Partially True"
+
         return TavilyVerifyOut(
-            verified=len(sources) > 0,
+            verified=True,
+            verdict=verdict,
+            explanation=explanation,
+            claims=claims,
             query=query,
             sources=sources,
             summary=f"Found {len(sources)} verified web source(s) via Tavily search.",

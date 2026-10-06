@@ -19,7 +19,11 @@ def _english_llm_title(post: dict) -> str | None:
 
 
 def reel_title(post: dict) -> str:
-    """Prefer Gemini's English title; otherwise use an English payload or author fallback."""
+    """Prefer custom user title, then Gemini's English title; otherwise use an English payload or author fallback."""
+    raw = post.get("raw") or {}
+    if isinstance(raw, dict) and raw.get("custom_title"):
+        return str(raw["custom_title"]).strip()[:200]
+
     llm_title = _english_llm_title(post)
     if llm_title:
         return llm_title

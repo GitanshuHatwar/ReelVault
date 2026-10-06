@@ -164,6 +164,13 @@ export const api = {
     return request(`/v1/reels/${reelId}`, { method: 'DELETE' });
   },
 
+  updateReelTitle: async (reelId, title) => {
+    if (isMockSession()) {
+      return mockStore.updateReelTitle(reelId, title);
+    }
+    return request(`/v1/reels/${reelId}`, { method: 'PATCH', body: { title } });
+  },
+
   startResearch: async (reelId, body = {}) => {
     if (isMockSession()) {
       return mockStore.startResearch(reelId, body);
@@ -178,17 +185,17 @@ export const api = {
     return request(`/v1/reels/${reelId}/deep-cook`);
   },
 
-  verifyWithTavily: async (reelId, { query, title, summary, keywords } = {}) => {
+  verifyWithTavily: async (reelId, { query, title, summary, transcript, keywords } = {}) => {
     if (isMockSession()) {
-      return mockStore.verifyWithTavily(reelId, { query, title, summary, keywords });
+      return mockStore.verifyWithTavily(reelId, { query, title, summary, transcript, keywords });
     }
     try {
       return await request(`/v1/reels/${reelId}/verify-tavily`, {
         method: 'POST',
-        body: { query, title, summary, keywords },
+        body: { query, title, summary, transcript, keywords },
       });
     } catch {
-      return mockStore.verifyWithTavily(reelId, { query, title, summary, keywords });
+      return mockStore.verifyWithTavily(reelId, { query, title, summary, transcript, keywords });
     }
   },
 

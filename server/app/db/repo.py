@@ -125,6 +125,26 @@ def delete_user_reel(user_id: str, reel_id: int) -> bool:
     return bool(res.data)
 
 
+def update_reel_title(user_id: str, reel_id: int, title: str) -> dict | None:
+    reel = get_user_reel(user_id, reel_id)
+    if not reel:
+        return None
+    post_id = reel.get("source_post_id")
+    if not post_id:
+        return reel
+    post = get_db().table("source_posts").select("*").eq("id", post_id).limit(1).execute()
+    current = _one(post)
+    if not current:
+        return reel
+    raw = dict(current.get("raw") or {})
+    raw["custom_title"] = title.strip()
+    analysis = dict(raw.get("reel_analysis") or {})
+    analysis["title"] = title.strip()
+    raw["reel_analysis"] = analysis
+    get_db().table("source_posts").update({"raw": raw}).eq("id", post_id).execute()
+    return get_user_reel(user_id, reel_id)
+
+
 _TERMINAL_DEEP_COOK_STATUSES = {"done", "not_opportunity", "failed"}
 _ACTIVE_DEEP_COOK_STATUSES = {"queued", "classifying", "extracting", "verifying", "researching"}
 

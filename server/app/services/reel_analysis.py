@@ -35,11 +35,25 @@ Return exactly the factual fields in the supplied schema:
 # These are deterministic product links, so they remain available even if the
 # model does not recognise a brand or temporarily cannot run.
 KNOWN_SOURCE_LINKS = (
+    (re.compile(r"\b(microsoft|msft)\b", re.IGNORECASE), {"name": "Microsoft", "url": "https://www.microsoft.com"}),
+    (re.compile(r"\badobe\b", re.IGNORECASE), {"name": "Adobe", "url": "https://www.adobe.com"}),
+    (re.compile(r"\b(paytm|paytem)\b", re.IGNORECASE), {"name": "Paytm", "url": "https://paytm.com"}),
+    (re.compile(r"\bamazon\b", re.IGNORECASE), {"name": "Amazon", "url": "https://www.amazon.com"}),
+    (re.compile(r"\bnvidia\b", re.IGNORECASE), {"name": "NVIDIA", "url": "https://www.nvidia.com"}),
+    (re.compile(r"\bapple\b", re.IGNORECASE), {"name": "Apple", "url": "https://www.apple.com"}),
+    (re.compile(r"\b(flipkart)\b", re.IGNORECASE), {"name": "Flipkart", "url": "https://www.flipkart.com"}),
+    (re.compile(r"\b(swiggy)\b", re.IGNORECASE), {"name": "Swiggy", "url": "https://www.swiggy.com"}),
+    (re.compile(r"\b(zomato)\b", re.IGNORECASE), {"name": "Zomato", "url": "https://www.zomato.com"}),
+    (re.compile(r"\b(tcs|tata\s+consultancy)\b", re.IGNORECASE), {"name": "TCS", "url": "https://www.tcs.com"}),
+    (re.compile(r"\binfosys\b", re.IGNORECASE), {"name": "Infosys", "url": "https://www.infosys.com"}),
+    (re.compile(r"\bwipro\b", re.IGNORECASE), {"name": "Wipro", "url": "https://www.wipro.com"}),
+    (re.compile(r"\b(canva)\b", re.IGNORECASE), {"name": "Canva", "url": "https://www.canva.com"}),
+    (re.compile(r"\b(figma)\b", re.IGNORECASE), {"name": "Figma", "url": "https://www.figma.com"}),
+    (re.compile(r"\b(notion)\b", re.IGNORECASE), {"name": "Notion", "url": "https://www.notion.so"}),
+    (re.compile(r"\b(github)\b", re.IGNORECASE), {"name": "GitHub", "url": "https://github.com"}),
     (re.compile(r"\bodoo\b", re.IGNORECASE), {"name": "Odoo", "url": "https://www.odoo.com"}),
     (re.compile(r"\bquizlet\b", re.IGNORECASE), {"name": "Quizlet", "url": "https://quizlet.com"}),
-    (re.compile(r"\bamazon\b", re.IGNORECASE), {"name": "Amazon", "url": "https://www.amazon.com"}),
-    (re.compile(r"\bgoogle\b", re.IGNORECASE), {"name": "Google", "url": "https://www.google.com"}),
-    (re.compile(r"\bnvidia\b", re.IGNORECASE), {"name": "NVIDIA", "url": "https://www.nvidia.com"}),
+    (re.compile(r"\b(summer\s*of\s*code|gsoc)\b", re.IGNORECASE), {"name": "Google Summer of Code", "url": "https://summerofcode.withgoogle.com"}),
 )
 
 URL_REGEX = re.compile(
