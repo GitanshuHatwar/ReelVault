@@ -16,7 +16,7 @@
 </div>
 
 ---
-
+<img width="1894" height="854" alt="Image" src="https://github.com/user-attachments/assets/8783d3ae-e8e3-4c83-8fdb-5ac5db16d8ae" />
 ## Overview
 
 Short videos are where people discover scholarships, internships, hackathons and government schemes, and also where scams and misinformation spread. ReelVault takes a shared Reel, Short or TikTok, extracts what is said, checks it, and saves the result in a personal vault with deadlines you can act on.
@@ -41,7 +41,7 @@ Opportunities are removed automatically after their deadline plus a configurable
 - **Deadline-aware cleanup:** expired opportunities pruned after `deadline + RETENTION_GRACE_DAYS`
 
 ## Architecture
-
+<img width="1852" height="933" alt="Image" src="https://github.com/user-attachments/assets/1b1463c4-ceaa-465e-891b-09a3b328a06b" />
 ```mermaid
 flowchart LR
     U[Client] -->|Bearer JWT| API[FastAPI /v1<br/>Vercel]
